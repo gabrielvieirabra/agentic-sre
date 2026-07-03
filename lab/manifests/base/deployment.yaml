@@ -7,6 +7,11 @@ metadata:
     sre-lab.io/component: web
 spec:
   replicas: 2
+  # Recreate (not RollingUpdate) so an injected fault decisively takes the app
+  # down (0 endpoints) instead of being masked by lingering old pods. This makes
+  # each scenario's symptom and its deterministic validation unambiguous.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: web

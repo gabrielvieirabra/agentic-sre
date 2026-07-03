@@ -30,14 +30,14 @@ for m in "$MODEL" "$FALLBACK"; do
 done
 
 echo "Smoke test: structured JSON from $MODEL ..."
-resp=$(curl -sf -X POST "$OLLAMA_BASE_URL/api/generate" \
+smoke=$(curl -sf -X POST "$OLLAMA_BASE_URL/api/generate" \
   -H 'Content-Type: application/json' \
   -d "{\"model\":\"$MODEL\",\"prompt\":\"Reply ONLY with compact JSON: {\\\"ok\\\":true,\\\"provider\\\":\\\"ollama\\\"}\",\"format\":\"json\",\"stream\":false}" \
-  | grep -o '"response":"[^"]*"' | head -1 || true)
+  | python3 -c 'import sys,json; obj=json.loads(json.load(sys.stdin)["response"]); print("PASS" if obj.get("ok") else "WARN", obj)' 2>/dev/null || echo "WARN parse-failed")
 
-if echo "$resp" | grep -q 'ok'; then
-  echo "  PASS: model returned JSON -> $resp"
+if [[ "$smoke" == PASS* ]]; then
+  echo "  $smoke"
 else
-  echo "  WARN: JSON smoke test unclear (resp: $resp). Model still usable; check manually."
+  echo "  WARN: JSON smoke test unclear ($smoke). Model still usable; check manually."
 fi
 echo "Ollama ready: primary=$MODEL fallback=$FALLBACK"

@@ -18,8 +18,12 @@ evaluate the repair loop — safe, local, and fast to reset.
 
 ### Namespace & baseline
 - Namespace: `sre-lab` (created by `setup_minikube.sh`).
-- Baseline healthy app: a small HTTP echo/nginx Deployment + Service (+ optional Ingress).
-- Images: pinned public images already small (e.g. `nginx:1.27-alpine`, `hashicorp/http-echo`).
+- Baseline healthy app: a small nginx Deployment + Service (+ optional Ingress).
+- Images: pinned public images already small (e.g. `nginx:1.27-alpine`).
+- **Deployment strategy: `Recreate`** (not RollingUpdate). Verified live: with RollingUpdate a
+  fault injected over a healthy deployment leaves the old pods serving, so `endpoints` stays
+  non-empty and can't distinguish broken from fixed. `Recreate` makes each fault a decisive
+  outage (0 endpoints), so the deterministic validations below are actually discriminating.
 
 ### Scenario model
 ```
