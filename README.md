@@ -73,6 +73,7 @@ scripts/   inspect_mac / setup_ollama / setup_minikube / run_lab / inject_bug / 
 
 Built in phases (see [`specs/009-roadmap.md`](specs/009-roadmap.md)).
 **Delivered:** Phase 1 (specs) · Phase 2 (runtime scripts) · Phase 3 (lab + 3 scenarios) ·
-**Phase 4 (LangGraph dry-run repair loop)** — observe → classify → diagnose → plan →
-planned-action block → named terminal state → postmortem, verified live against all 3 scenarios.
-**Next:** Phase 5 safe apply (gate/executor already wired) → Phase 6 evals → Phase 7 memory+reports.
+Phase 4 (LangGraph dry-run repair loop) · **Phase 5 (safe apply)** — `apply-local-lab` heals
+all 3 scenarios → `FIXED`, and a forced regression correctly `ROLLED_BACK` (pre-fix state
+restored), all verified live.
+**Next:** Phase 6 evals (deterministic scoring + Regression Guard) → Phase 7 memory + reports.

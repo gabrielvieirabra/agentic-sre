@@ -77,8 +77,12 @@ class ValidationResult(BaseModel):
 class AppliedAction(BaseModel):
     description: str
     command: str
-    rollback_command: str = ""
+    rollback_command: str = ""  # human-readable, for the report
     applied: bool = False
+    # structured rollback so the executor can undo safely (no free-form shell)
+    target_kind: str = ""
+    target_name: str = ""
+    rollback_patch: str = ""  # JSON strategic-merge patch to restore prior state (Service)
 
 
 class AgentState(BaseModel):

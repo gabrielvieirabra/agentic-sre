@@ -8,6 +8,7 @@ gated (specs/007) and, in dry-run, is a no-op that only prints the planned-actio
 from __future__ import annotations
 
 import json
+import time
 
 from langgraph.graph import END, START, StateGraph
 
@@ -270,11 +271,13 @@ class Nodes:
             return {}
 
         rollback_cmd = patch.rollback
+        rollback_patch = ""
         # For Service selector changes, capture the current selector for a precise rollback.
         if patch.target_kind == "Service":
             cur = state.cluster_snapshot.get("service", {}).get("selector", {})
+            rollback_patch = json.dumps({"spec": {"selector": cur}})
             rollback_cmd = (f"kubectl -n {self.s.namespace} patch svc {patch.target_name} "
-                            f"--type strategic -p '{json.dumps({'spec': {'selector': cur}})}'")
+                            f"--type strategic -p '{rollback_patch}'")
 
         res = self.t.patch(patch.target_kind, patch.target_name, patch.kubectl_patch,
                            rollback=rollback_cmd)
@@ -283,6 +286,8 @@ class Nodes:
             command=f"kubectl -n {self.s.namespace} patch {patch.target_kind} "
                     f"{patch.target_name} -p '{patch.kubectl_patch}'",
             rollback_command=rollback_cmd, applied=res.ok,
+            target_kind=patch.target_kind, target_name=patch.target_name,
+            rollback_patch=rollback_patch,
         )
         if res.ok:
             self.log.info("applied fix", target=f"{patch.target_kind}/{patch.target_name}")
@@ -294,8 +299,19 @@ class Nodes:
 
     def validation_runner(self, state: AgentState) -> dict:
         self.log.set_node("validation_runner")
-        snap = self._snapshot()  # independent re-observation (checker)
+        applied = any(a.applied for a in state.applied_actions)
+        # Independent re-observation (checker). If a fix was applied, poll until the
+        # cluster converges (e.g. the endpoints controller repopulates after a Service
+        # selector change) instead of judging on a single racy read.
+        snap = self._snapshot()
         val = self._validation_from(snap)
+        if applied:
+            for _ in range(10):
+                if val.healthy:
+                    break
+                time.sleep(2)
+                snap = self._snapshot()
+                val = self._validation_from(snap)
         self.log.info("validation", healthy=val.healthy, detail=val.detail)
         return {"cluster_snapshot": snap, "validation": val}
 
@@ -332,12 +348,16 @@ class Nodes:
 
     def _rollback(self, state: AgentState) -> None:
         for a in state.applied_actions:
-            if a.applied and a.rollback_command:
-                self.log.warn("rolling back", cmd=a.rollback_command)
-                # rollback is itself a mutation; execute via a deployment undo or svc patch
-                patch = state.proposed_patch
-                if patch and patch.target_kind == "Deployment":
-                    self.t.rollout_undo(f"deploy/{patch.target_name}")
+            if not a.applied:
+                continue
+            self.log.warn("rolling back", target=f"{a.target_kind}/{a.target_name}")
+            # rollback is itself a mutation; use structured, bounded operations only.
+            if a.target_kind == "Deployment":
+                self.t.rollout_undo(f"deploy/{a.target_name}")
+                self.t.rollout_status(f"deploy/{a.target_name}", timeout_s=60)
+            elif a.target_kind == "Service" and a.rollback_patch:
+                self.t.patch("Service", a.target_name, a.rollback_patch,
+                             rollback="(rollback of a rollback is a no-op)")
 
     def memory_writer(self, state: AgentState) -> dict:
         # Full memory store is Phase 7; here we append a compact lesson record.
