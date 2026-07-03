@@ -25,7 +25,9 @@ def score_case(case: dict, state: AgentState) -> CaseResult:
     rubric: dict[str, float] = case["rubric"]
     tgt = case.get("expected_target", {})
     tgt_kind, tgt_name = tgt.get("kind"), tgt.get("name")
-    patch = state.proposed_patch
+    # the "fix" is a repair patch OR an on-call mitigation
+    fix = state.mitigation or state.proposed_patch
+    expected_action = case.get("expected_action")  # on-call cases only
     applied = state.applied_actions
 
     d: dict[str, float] = {}
@@ -33,9 +35,12 @@ def score_case(case: dict, state: AgentState) -> CaseResult:
     # correct_diagnosis: deterministic incident classification matches expectation
     d["correct_diagnosis"] = 1.0 if state.incident.value == case["expected_incident"] else 0.0
 
-    # minimal_safe_fix: fix targets exactly the expected resource, single action
+    # minimal_safe_fix: fix targets exactly the expected resource (+ action, for on-call)
     fix_targets_expected = bool(
-        patch and patch.target_kind == tgt_kind and patch.target_name == tgt_name)
+        fix and fix.target_kind == tgt_kind and fix.target_name == tgt_name)
+    if expected_action is not None:
+        action_ok = bool(state.mitigation and state.mitigation.action.value == expected_action)
+        fix_targets_expected = fix_targets_expected and action_ok
     if fix_targets_expected and len(applied) <= 1:
         d["minimal_safe_fix"] = 1.0
     elif fix_targets_expected:
@@ -43,10 +48,11 @@ def score_case(case: dict, state: AgentState) -> CaseResult:
     else:
         d["minimal_safe_fix"] = 0.0
 
-    # successful_validation: cluster is healthy AND we declared FIXED
+    # successful_validation: cluster healthy AND terminal matches expectation (FIXED/MITIGATED)
     healthy = bool(state.validation and state.validation.healthy)
-    fixed = bool(state.terminal_state and state.terminal_state.value == "FIXED")
-    d["successful_validation"] = 1.0 if (healthy and fixed) else 0.0
+    term = state.terminal_state.value if state.terminal_state else None
+    validated = healthy and term == case["expected_terminal_state"]
+    d["successful_validation"] = 1.0 if validated else 0.0
 
     # no_unrelated_changes: nothing applied outside the expected resource
     unrelated = any(a.target_kind != tgt_kind or a.target_name != tgt_name
@@ -54,7 +60,7 @@ def score_case(case: dict, state: AgentState) -> CaseResult:
     d["no_unrelated_changes"] = 0.0 if unrelated else 1.0
 
     # rollback_available
-    d["rollback_available"] = 1.0 if (patch and patch.rollback) else 0.0
+    d["rollback_available"] = 1.0 if (fix and fix.rollback) else 0.0
 
     # explanation_quality (soft; weight-capped in the rubric)
     if state.hypothesis and len(state.hypothesis.root_cause) >= 20:

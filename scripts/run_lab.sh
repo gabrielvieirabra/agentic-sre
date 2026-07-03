@@ -7,8 +7,10 @@ kubectl --context "$CTX" get ns "$NS" >/dev/null 2>&1 || kubectl --context "$CTX
 
 echo "Applying healthy baseline to $NS ..."
 kubectl --context "$CTX" apply -k "$ROOT/lab/manifests/base"
+kubectl --context "$CTX" apply -k "$ROOT/lab/manifests/depsvc"
 
 echo "Waiting for rollout ..."
 kc rollout status deploy/web --timeout=120s || true
-kc get pods,svc,endpoints -l app=web
+kc rollout status deploy/depsvc --timeout=120s || true
+kc get pods,svc,endpoints
 echo "Lab baseline is up. Break it with: make inject SCENARIO=bad-probe"

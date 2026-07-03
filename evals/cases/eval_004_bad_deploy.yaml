@@ -1,0 +1,19 @@
+name: eval_004_bad_deploy
+kind: oncall
+scenario: bad-deploy
+alert: lab/alerts/bad-deploy.json
+expected_incident: bad-deploy
+expected_action: rollback
+expected_target: {kind: Deployment, name: web}
+validation_command: "kubectl -n sre-lab rollout status deploy/web --timeout=90s"
+expected_terminal_state: MITIGATED
+pass_threshold: 0.8
+efficiency_max_tool_calls: 16
+rubric:
+  correct_diagnosis: 0.25
+  minimal_safe_fix: 0.20
+  successful_validation: 0.25
+  no_unrelated_changes: 0.10
+  rollback_available: 0.05
+  explanation_quality: 0.10
+  time_tool_efficiency: 0.05

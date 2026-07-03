@@ -66,11 +66,11 @@ class Nodes:
         self._t0 = time.time()  # run start, for elapsed captured inside the graph
 
     # ---- observation helpers ----------------------------------------
-    def _snapshot(self) -> dict:
+    def _snapshot(self, app: str = APP) -> dict:
         pods_res = self.t.get_json("pods")
-        dep_res = self.t.get_json("deploy", APP)
-        svc_res = self.t.get_json("svc", APP)
-        ep_res = self.t.get_json("endpoints", APP)
+        dep_res = self.t.get_json("deploy", app)
+        svc_res = self.t.get_json("svc", app)
+        ep_res = self.t.get_json("endpoints", app)
 
         pods = []
         for item in (pods_res.data or {}).get("items", []) if pods_res.ok else []:
@@ -133,7 +133,7 @@ class Nodes:
 
     def cluster_observer(self, state: AgentState) -> dict:
         self.log.set_node("cluster_observer")
-        snap = self._snapshot()
+        snap = self._snapshot(state.target_app)
         baseline = state.baseline_validation or self._validation_from(snap)
         if state.iteration_count == 0:
             self.log.write_json("snapshot_before.json", snap)
@@ -184,10 +184,11 @@ class Nodes:
 
     def evidence_collector(self, state: AgentState) -> dict:
         self.log.set_node("evidence_collector")
+        app = state.target_app
         ev: list[Evidence] = []
-        dep = self.t.describe("deploy", APP)
+        dep = self.t.describe("deploy", app)
         if dep.ok:
-            ev.append(Evidence(source="kubectl describe deploy/web",
+            ev.append(Evidence(source=f"kubectl describe deploy/{app}",
                                summary=_tail(dep.data, 12)))
         broken = next((p for p in state.cluster_snapshot.get("pods", [])
                        if p.get("waiting_reason") or not p.get("ready")), None)
@@ -323,14 +324,15 @@ class Nodes:
         # Independent re-observation (checker). If a fix was applied, poll until the
         # cluster converges (e.g. the endpoints controller repopulates after a Service
         # selector change) instead of judging on a single racy read.
-        snap = self._snapshot()
+        app = state.target_app
+        snap = self._snapshot(app)
         val = self._validation_from(snap)
         if applied:
             for _ in range(10):
                 if val.healthy:
                     break
                 time.sleep(2)
-                snap = self._snapshot()
+                snap = self._snapshot(app)
                 val = self._validation_from(snap)
         self.log.info("validation", healthy=val.healthy, detail=val.detail)
         return {"cluster_snapshot": snap, "validation": val}

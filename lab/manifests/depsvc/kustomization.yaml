@@ -1,0 +1,8 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: sre-lab
+resources:
+  - configmap-config.yaml
+  - configmap-code.yaml
+  - deployment.yaml
+  - service.yaml

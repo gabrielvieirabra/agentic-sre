@@ -62,7 +62,15 @@ make oncall SCENARIO=bad-deploy ALERT=lab/alerts/bad-deploy.json MODE=apply-loca
 make inject SCENARIO=overloaded                 # single replica under load
 make oncall SCENARIO=overloaded ALERT=lab/alerts/high-latency.json MODE=apply-local-lab
 #   -> SCALE_OUT to 3 replicas -> MITIGATED
+
+make inject SCENARIO=dependency-down            # depsvc upstream failing (503)
+make oncall SCENARIO=dependency-down ALERT=lab/alerts/dependency-down.json MODE=apply-local-lab
+#   -> DEPENDENCY_FALLBACK (flip ConfigMap + restart) -> MITIGATED
 ```
+
+Mitigation catalog: `DeployFailed → rollback` · `HighLatency → scale-out` ·
+`PodsDegraded → restart` · `DependencyDown → dependency-fallback`. `make eval` scores all
+scenarios (repair **and** on-call) with the Regression Guard.
 
 ## Safety model (default = dry-run)
 

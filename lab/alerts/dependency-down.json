@@ -1,0 +1,7 @@
+{
+  "name": "DependencyDown-depsvc",
+  "signal": "DependencyDown",
+  "severity": "SEV2",
+  "description": "depsvc upstream dependency is failing; readiness probe returning 503",
+  "labels": {"app": "depsvc", "team": "sre-lab"}
+}

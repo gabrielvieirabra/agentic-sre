@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: depsvc-config
+  labels:
+    app: depsvc
+data:
+  # Dependency mode: up (healthy) | down (dependency failing) | fallback (degraded-but-serving)
+  mode: "up"

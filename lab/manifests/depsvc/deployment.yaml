@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: depsvc
+  labels:
+    app: depsvc
+    sre-lab.io/component: depsvc
+spec:
+  replicas: 1
+  # Recreate so a config-driven fault is decisive; MODE is read at pod start, so a
+  # ConfigMap change only takes effect after a restart (that's the mitigation).
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: depsvc
+  template:
+    metadata:
+      labels:
+        app: depsvc
+        sre-lab.io/component: depsvc
+      annotations:
+        sre-lab.io/scenario: baseline
+    spec:
+      containers:
+        - name: depsvc
+          image: python:3.12-alpine
+          command: ["python", "/app/server.py"]
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: MODE
+              valueFrom:
+                configMapKeyRef:
+                  name: depsvc-config
+                  key: mode
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            initialDelaySeconds: 2
+            periodSeconds: 3
+            timeoutSeconds: 2
+            failureThreshold: 2
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: code
+              mountPath: /app
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+      volumes:
+        - name: code
+          configMap:
+            name: depsvc-code

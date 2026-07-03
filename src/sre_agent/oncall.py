@@ -90,10 +90,12 @@ class OnCallNodes(Nodes):
         # honor an explicit severity from the alert file, else use the mapped default
         severity = alert.severity if alert.source == "file" else default_sev
         alert.severity = severity
+        target_app = alert.labels.get("app") or _default_app(incident)
         timeline = [f"🚨 DECLARED {severity.value}: {alert.name} (signal={alert.signal})"]
-        self.log.info("triaged", incident=incident.value, severity=severity.value)
+        self.log.info("triaged", incident=incident.value, severity=severity.value,
+                      target_app=target_app)
         return {"incident": incident, "severity": severity, "alert": alert,
-                "incident_timeline": timeline}
+                "target_app": target_app, "incident_timeline": timeline}
 
     # ---- mitigation ---------------------------------------------------
     def mitigation_planner(self, state: AgentState) -> dict:

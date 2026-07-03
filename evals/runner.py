@@ -22,7 +22,7 @@ from rich.table import Table
 
 from evals.scoring import CaseResult, score_case
 from sre_agent.config import Mode, load_settings
-from sre_agent.loop import run_loop
+from sre_agent.loop import run_loop, run_oncall
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CASES_DIR = REPO_ROOT / "evals" / "cases"
@@ -45,13 +45,18 @@ def run_case(case: dict) -> CaseResult:
     settings = load_settings()
     settings.mode = Mode.APPLY_LOCAL_LAB
     scenario = case["scenario"]
+    kind = case.get("kind", "repair")
 
-    console.print(f"[bold]▶ {case['name']}[/bold]  (reset → inject {scenario} → run agent)")
+    console.print(f"[bold]▶ {case['name']}[/bold]  ({kind}: reset → inject {scenario} → run)")
     _sh("scripts/reset_lab.sh")
     _sh("scripts/inject_bug.sh", scenario)
     time.sleep(SETTLE_AFTER_INJECT)
 
-    state = run_loop(settings, scenario)
+    if kind == "oncall":
+        alert = str(REPO_ROOT / case["alert"]) if case.get("alert") else None
+        state = run_oncall(settings, scenario, alert)
+    else:
+        state = run_loop(settings, scenario)
     return score_case(case, state)
 
 

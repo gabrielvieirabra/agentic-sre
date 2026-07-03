@@ -41,6 +41,16 @@ lab/
 | `bad-readiness-probe` | probe wrong path/port | pods never Ready, 0 endpoints | correct probe path/port | endpoints non-empty + HTTP 200 |
 | `service-selector-mismatch` | Service selector ≠ pod labels | Service has no endpoints | align selector | `kubectl get endpoints` non-empty + HTTP 200 |
 
+### On-call scenarios (post-MVP; see 010)
+| Scenario | App | Fault | Mitigation |
+|---|---|---|---|
+| `bad-deploy` | web | bad v2 image rollout | ROLLBACK |
+| `overloaded` | web | replicas=1 under load | SCALE_OUT |
+| `dependency-down` | depsvc | ConfigMap `mode=down` → 503 | DEPENDENCY_FALLBACK |
+
+`depsvc` is a tiny python app (code-in-ConfigMap) whose readiness depends on `mode`
+(`up`/`down`/`fallback`) read at pod start — so a config change needs a restart to take effect.
+
 ### Scaffolded (spec/stub only for MVP)
 `missing-configmap`, `cpu-throttling`, and the broader catalog below.
 

@@ -1,0 +1,23 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: sre-lab
+resources:
+  - ../../manifests/depsvc
+# FAULT: the external dependency is "down" -> depsvc /ready returns 503.
+# We flip the ConfigMap to down AND bump the pod template annotation to force a
+# rollout, so new pods start with MODE=down and become NotReady (deterministic).
+patches:
+  - target:
+      kind: ConfigMap
+      name: depsvc-config
+    patch: |-
+      - op: replace
+        path: /data/mode
+        value: down
+  - target:
+      kind: Deployment
+      name: depsvc
+    patch: |-
+      - op: replace
+        path: /spec/template/metadata/annotations/sre-lab.io~1scenario
+        value: dependency-down

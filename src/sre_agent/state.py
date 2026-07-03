@@ -141,6 +141,7 @@ class AgentState(BaseModel):
     goal: str
     mode: str
     scenario: str | None = None
+    target_app: str = "web"  # lab app this run observes/acts on (on-call may switch to depsvc)
 
     # observation
     cluster_snapshot: dict = Field(default_factory=dict)

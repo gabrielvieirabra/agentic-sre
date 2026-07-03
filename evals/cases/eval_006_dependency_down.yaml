@@ -1,0 +1,19 @@
+name: eval_006_dependency_down
+kind: oncall
+scenario: dependency-down
+alert: lab/alerts/dependency-down.json
+expected_incident: dependency-down
+expected_action: dependency-fallback
+expected_target: {kind: ConfigMap, name: depsvc-config}
+validation_command: "kubectl -n sre-lab rollout status deploy/depsvc --timeout=90s"
+expected_terminal_state: MITIGATED
+pass_threshold: 0.8
+efficiency_max_tool_calls: 16
+rubric:
+  correct_diagnosis: 0.25
+  minimal_safe_fix: 0.20
+  successful_validation: 0.25
+  no_unrelated_changes: 0.10
+  rollback_available: 0.05
+  explanation_quality: 0.10
+  time_tool_efficiency: 0.05
