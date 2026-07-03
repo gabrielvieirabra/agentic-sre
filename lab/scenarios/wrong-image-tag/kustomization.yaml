@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: sre-lab
+resources:
+  - ../../manifests/base
+# FAULT: point the container at an image tag that does not exist.
+patches:
+  - target:
+      kind: Deployment
+      name: web
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/image
+        value: nginx:9.9.9-doesnotexist

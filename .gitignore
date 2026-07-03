@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+dist/
+build/
+
+# Env & secrets
+.env
+*.local
+
+# Runtime artifacts
+runs/
+reports/*.md
+reports/*.json
+*.sqlite
+*.sqlite3
+*.db
+snapshots/
+
+# OS
+.DS_Store
