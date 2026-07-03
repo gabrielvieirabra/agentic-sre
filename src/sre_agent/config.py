@@ -6,7 +6,7 @@ Loads from environment / `.env` (see `.env.example`). Enforces the local-only,
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 
 from pydantic import Field, field_validator
@@ -15,7 +15,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
-class Mode(str, Enum):
+class Mode(StrEnum):
     DRY_RUN = "dry-run"
     SUGGEST_ONLY = "suggest-only"
     APPLY_LOCAL_LAB = "apply-local-lab"

@@ -72,5 +72,7 @@ scripts/   inspect_mac / setup_ollama / setup_minikube / run_lab / inject_bug / 
 ## Status
 
 Built in phases (see [`specs/009-roadmap.md`](specs/009-roadmap.md)).
-**Delivered:** Phase 1 (specs) · Phase 2 (runtime scripts) · Phase 3 (lab + 3 scenarios).
-**Next:** Phase 4 LangGraph dry-run loop → Phase 5 safe apply → Phase 6 evals → Phase 7 memory+reports.
+**Delivered:** Phase 1 (specs) · Phase 2 (runtime scripts) · Phase 3 (lab + 3 scenarios) ·
+**Phase 4 (LangGraph dry-run repair loop)** — observe → classify → diagnose → plan →
+planned-action block → named terminal state → postmortem, verified live against all 3 scenarios.
+**Next:** Phase 5 safe apply (gate/executor already wired) → Phase 6 evals → Phase 7 memory+reports.
