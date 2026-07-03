@@ -6,7 +6,6 @@
 
 from __future__ import annotations
 
-import time
 from pathlib import Path
 
 import typer
@@ -14,12 +13,7 @@ from rich.console import Console
 from rich.panel import Panel
 
 from sre_agent.config import Mode, load_settings
-from sre_agent.graph import build_graph
-from sre_agent.llm import LLM
-from sre_agent.observability import RunLogger, new_trace_id
-from sre_agent.reports import build_report
-from sre_agent.state import AgentState
-from sre_agent.tools import Tools
+from sre_agent.loop import run_loop
 
 app = typer.Typer(add_completion=False, help="Local-first SRE agentic repair loop.")
 console = Console()
@@ -40,58 +34,26 @@ def run(
     if mode:
         settings.mode = Mode(mode)
 
-    trace_id = new_trace_id(scenario)
-    logger = RunLogger(settings.runs_dir, trace_id, settings.log_level)
-    tools = Tools(settings, logger)
-    llm = LLM(settings)
-
-    graph = build_graph(settings, tools, llm, logger)
-    init = AgentState(
-        trace_id=trace_id,
-        goal="Restore the sre-lab workload to a healthy, validated state with the "
-             "smallest safe change.",
-        mode=settings.mode.value,
-        scenario=scenario,
-    )
-
     console.print(Panel.fit(
         f"[bold]SRE Repair Loop[/bold]\nscenario=[cyan]{scenario or '(ad-hoc)'}[/cyan]  "
         f"mode=[cyan]{settings.mode.value}[/cyan]  model=[cyan]{settings.model}[/cyan]",
         border_style="blue"))
 
-    start = time.time()
-    final_dict = graph.invoke(init, config={"recursion_limit": 50})
-    elapsed = time.time() - start
-    final = AgentState.model_validate(final_dict)
-    final.elapsed_seconds = elapsed
-    final.tool_call_count = tools.calls
+    final = run_loop(settings, scenario)
 
     # planned-action block is the key dry-run artifact
     if final.planned_action_block:
         console.print(Panel(final.planned_action_block, title="Planned action",
                             border_style="yellow"))
 
-    report_md = build_report(final, settings)
-    logger.write_text("report.md", report_md)
-    terminal = final.terminal_state.value if final.terminal_state else None
-    logger.write_json("meta.json", {
-        "trace_id": trace_id, "scenario": scenario, "mode": settings.mode.value,
-        "model": settings.model, "terminal_state": terminal,
-        "eval_score": final.eval_score, "tool_calls": tools.calls,
-        "elapsed_seconds": round(elapsed, 2), "incident": final.incident.value,
-    })
-    # copy report into the repo-level reports/ dir too
-    reports_dir = Path("reports")
-    reports_dir.mkdir(exist_ok=True)
-    (reports_dir / f"{trace_id}.md").write_text(report_md)
-
     ts = final.terminal_state.value if final.terminal_state else "?"
     style = _TERMINAL_STYLE.get(ts, "white")
     console.print(Panel.fit(
         f"Terminal state: [{style}]{ts}[/{style}]\n"
         f"Diagnosis: {final.hypothesis.root_cause if final.hypothesis else '(none)'}\n"
-        f"Score: {final.eval_score}   Tool calls: {tools.calls}   Elapsed: {elapsed:.1f}s\n"
-        f"Report: runs/{trace_id}/report.md",
+        f"Score: {final.eval_score}   Tool calls: {final.tool_call_count}   "
+        f"Elapsed: {final.elapsed_seconds:.1f}s\n"
+        f"Report: runs/{final.trace_id}/report.md",
         title="Result", border_style=style))
 
 

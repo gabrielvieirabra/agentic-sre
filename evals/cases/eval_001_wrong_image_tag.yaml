@@ -1,0 +1,20 @@
+name: eval_001_wrong_image_tag
+scenario: wrong-image-tag
+expected_incident: image-pull
+expected_diagnosis: "Deployment references a non-existent image tag -> ImagePullBackOff"
+acceptable_fixes:
+  - "set the image to a valid tag"
+  - "kubectl patch/set image to a pullable tag"
+expected_target: {kind: Deployment, name: web}
+validation_command: "kubectl -n sre-lab rollout status deploy/web --timeout=90s"
+expected_terminal_state: FIXED
+pass_threshold: 0.8
+efficiency_max_tool_calls: 15
+rubric:
+  correct_diagnosis: 0.25
+  minimal_safe_fix: 0.20
+  successful_validation: 0.25
+  no_unrelated_changes: 0.10
+  rollback_available: 0.05
+  explanation_quality: 0.10
+  time_tool_efficiency: 0.05

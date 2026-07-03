@@ -73,7 +73,9 @@ scripts/   inspect_mac / setup_ollama / setup_minikube / run_lab / inject_bug / 
 
 Built in phases (see [`specs/009-roadmap.md`](specs/009-roadmap.md)).
 **Delivered:** Phase 1 (specs) · Phase 2 (runtime scripts) · Phase 3 (lab + 3 scenarios) ·
-Phase 4 (LangGraph dry-run repair loop) · **Phase 5 (safe apply)** — `apply-local-lab` heals
-all 3 scenarios → `FIXED`, and a forced regression correctly `ROLLED_BACK` (pre-fix state
-restored), all verified live.
-**Next:** Phase 6 evals (deterministic scoring + Regression Guard) → Phase 7 memory + reports.
+Phase 4 (dry-run loop) · Phase 5 (safe apply — heals all 3 → `FIXED`, forced regression
+→ `ROLLED_BACK`) · **Phase 6 (evals)** — `make eval` runs all 3 cases with deterministic
+rubric scoring (**3/3 PASS @ 1.00**) plus a **Regression Guard** that flags any case which
+used to pass but now fails. All 12 MVP acceptance criteria are met.
+**Next:** Phase 7 — local memory (SQLite) + richer postmortems; creative features
+(Chaos Generator, Fix Pattern Library).
