@@ -11,10 +11,17 @@ import json
 from pydantic import BaseModel
 
 from sre_agent.config import Mode, Settings
-from sre_agent.state import ProposedPatch
+from sre_agent.state import Mitigation, MitigationAction, ProposedPatch
 
 # Only these kinds are ever eligible for auto-apply in the lab.
 _ALLOWED_KINDS = {"Deployment", "Service"}
+
+# On-call mitigation scope: which lab resources each action may touch.
+_ALLOWED_DEPLOYS = {"web", "depsvc"}
+_ALLOWED_CONFIGMAPS = {"depsvc-config"}
+_DEPLOY_ACTIONS = {MitigationAction.ROLLBACK, MitigationAction.SCALE_OUT, MitigationAction.RESTART}
+_CONFIG_ACTIONS = {MitigationAction.CONFIG_PATCH, MitigationAction.DEPENDENCY_FALLBACK}
+_MAX_REPLICAS = 5
 
 
 class GateDecision(BaseModel):
@@ -77,3 +84,61 @@ def check_gate(patch: ProposedPatch | None, settings: Settings) -> GateDecision:
 
     return GateDecision(allow_apply=True,
                         reason="all safety conditions met (sre-lab, rollback, validation)")
+
+
+# ---- on-call mitigation gate ----------------------------------------------
+def mitigation_action_block(m: Mitigation, settings: Settings) -> str:
+    return (
+        "Planned action:  [{action}] {summary}\n"
+        "Reason:          mitigate the incident (stop the bleeding)\n"
+        "Files/resources: {kind}/{name} in ns={ns} (context={ctx}) params={params}\n"
+        "Rollback:        {rollback}\n"
+        "Validation:      {validation}\n"
+        "Risk level:      {risk}"
+    ).format(
+        action=m.action.value, summary=m.summary, kind=m.target_kind, name=m.target_name,
+        ns=settings.namespace, ctx=settings.kube_context, params=m.params or "{}",
+        rollback=m.rollback or "(none)", validation=m.validation or "(none)",
+        risk=m.risk_level.value,
+    )
+
+
+def check_mitigation_gate(m: Mitigation | None, settings: Settings) -> GateDecision:
+    """Auto-apply a mitigation ONLY when every safety condition holds."""
+    if m is None:
+        return GateDecision(allow_apply=False, reason="no mitigation proposed")
+    if settings.mode is not Mode.APPLY_LOCAL_LAB:
+        return GateDecision(allow_apply=False,
+                            reason=f"mode={settings.mode.value}: mutation not permitted")
+    if m.action not in set(MitigationAction):
+        return GateDecision(allow_apply=False, reason=f"unknown action '{m.action}'")
+    if not m.rollback or not m.validation:
+        return GateDecision(allow_apply=False, reason="rollback and validation must be defined")
+
+    # scope: only known lab resources, per action family
+    if m.action in _DEPLOY_ACTIONS and (
+            m.target_kind != "Deployment" or m.target_name not in _ALLOWED_DEPLOYS):
+        return GateDecision(allow_apply=False,
+                            reason=f"{m.action} must target a lab Deployment {_ALLOWED_DEPLOYS}")
+    if m.action in _CONFIG_ACTIONS and (
+            m.target_kind != "ConfigMap" or m.target_name not in _ALLOWED_CONFIGMAPS):
+        return GateDecision(allow_apply=False,
+                            reason=f"{m.action} must target a lab ConfigMap {_ALLOWED_CONFIGMAPS}")
+
+    # action-specific parameter checks
+    if m.action is MitigationAction.SCALE_OUT:
+        r = m.params.get("replicas")
+        if not isinstance(r, int) or not (1 <= r <= _MAX_REPLICAS):
+            return GateDecision(allow_apply=False,
+                                reason=f"scale-out replicas must be int in 1..{_MAX_REPLICAS}")
+    if m.action in _CONFIG_ACTIONS:
+        patch = m.params.get("patch")
+        if not patch:
+            return GateDecision(allow_apply=False, reason="config mitigation needs a patch body")
+        try:
+            json.loads(patch)
+        except (json.JSONDecodeError, TypeError) as e:
+            return GateDecision(allow_apply=False, reason=f"config patch not valid JSON: {e}")
+
+    return GateDecision(allow_apply=True,
+                        reason=f"mitigation {m.action} within sre-lab scope")

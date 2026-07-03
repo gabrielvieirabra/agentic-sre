@@ -22,6 +22,8 @@ The build must proceed in reviewable phases with a crisp definition of "MVP done
 | 7 Memory + reports | SQLite memory + postmortem; chaos gen; fix library | report per run; lessons stored |
 
 **Current status:** All 7 phases delivered and verified live. All 12 MVP criteria met.
+**Post-MVP:** On-call / incident-response & mitigation loop (`sre-agent oncall`) added — see
+[`010-oncall-incident-response.md`](010-oncall-incident-response.md).
 
 ## MVP acceptance criteria (from product spec)
 1. Runs fully locally (no cloud/paid model APIs).

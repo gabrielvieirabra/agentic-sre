@@ -108,6 +108,10 @@ class Tools:
         return self._kubectl(["rollout", "status", kind_name, f"--timeout={timeout_s}s"],
                              timeout=timeout_s + 10)
 
+    def top_pods(self) -> ToolResult:
+        # Saturation evidence (needs metrics-server). Best-effort; may be empty early.
+        return self._kubectl(["top", "pods", "--no-headers"], timeout=15)
+
     # ---- MUTATE_LAB tools (gated) --------------------------------------
     def _gate(self, description: str) -> ToolResult | None:
         """Return a gated no-op result unless we are in apply-local-lab mode."""
@@ -128,3 +132,17 @@ class Tools:
         if gated is not None:
             return gated
         return self._kubectl(["rollout", "undo", kind_name], safety="MUTATE_LAB", timeout=60)
+
+    def scale(self, kind_name: str, replicas: int, rollback: str = "") -> ToolResult:
+        gated = self._gate(f"scale {kind_name} -> {replicas}")
+        if gated is not None:
+            return gated
+        return self._kubectl(["scale", kind_name, f"--replicas={replicas}"],
+                             safety="MUTATE_LAB", timeout=30, rollback=rollback)
+
+    def rollout_restart(self, kind_name: str, rollback: str = "") -> ToolResult:
+        gated = self._gate(f"rollout restart {kind_name}")
+        if gated is not None:
+            return gated
+        return self._kubectl(["rollout", "restart", kind_name],
+                             safety="MUTATE_LAB", timeout=30, rollback=rollback)

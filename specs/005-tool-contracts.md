@@ -41,6 +41,9 @@ returns: pydantic ToolResult {ok, data, error, duration_ms}
 | `kubectl_apply` | MUTATE_LAB | manifest/path, ns=sre-lab | applied objs | 30 |
 | `kubectl_patch` | MUTATE_LAB | kind/name, patch, ns | patched | 30 |
 | `kubectl_rollout_undo` | MUTATE_LAB | kind/name, ns, to-revision? | reverted | 60 |
+| `scale` | MUTATE_LAB | kind/name, replicas (1..5) | scaled | 30 |
+| `rollout_restart` | MUTATE_LAB | kind/name | restarted | 30 |
+| `top_pods` | READ | — | cpu/mem per pod | 15 |
 | `helm_template_or_apply` | MUTATE_LAB | chart, values, ns | rendered/applied | 60 |
 | `write_file` | WRITE_REPO | path (repo-relative), content | bytes | 5 |
 | `run_shell_command` | READ/MUTATE | argv (allowlist only) | stdout/exit | 30 |

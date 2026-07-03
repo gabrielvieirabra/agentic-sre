@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 class TerminalState(StrEnum):
     FIXED = "FIXED"
     IMPROVED = "IMPROVED"
+    MITIGATED = "MITIGATED"  # on-call: bleeding stopped, root cause -> follow-up
     NO_ACTION_NEEDED = "NO_ACTION_NEEDED"
     NEEDS_HUMAN = "NEEDS_HUMAN"
     FAILED_SAFELY = "FAILED_SAFELY"
@@ -25,6 +26,11 @@ class IncidentCategory(StrEnum):
     SERVICE_ENDPOINTS = "service-endpoints"
     CRASH_LOOP = "crash-loop"
     PENDING_SCHEDULING = "pending-scheduling"
+    # on-call / incident-response incidents (mitigation-driven)
+    BAD_DEPLOY = "bad-deploy"
+    OVERLOAD = "overload"
+    DEPENDENCY_DOWN = "dependency-down"
+    CONFIG_DRIFT = "config-drift"
     UNKNOWN = "unknown"
     NONE = "none"
 
@@ -33,6 +39,23 @@ class RiskLevel(StrEnum):
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
+
+
+class Severity(StrEnum):
+    """Incident severity (blast radius / urgency). SEV1 = worst."""
+
+    SEV1 = "SEV1"
+    SEV2 = "SEV2"
+    SEV3 = "SEV3"
+    SEV4 = "SEV4"
+
+
+class MitigationAction(StrEnum):
+    ROLLBACK = "rollback"
+    SCALE_OUT = "scale-out"
+    RESTART = "restart"
+    CONFIG_PATCH = "config-patch"
+    DEPENDENCY_FALLBACK = "dependency-fallback"
 
 
 class Symptom(BaseModel):
@@ -64,6 +87,30 @@ class ProposedPatch(BaseModel):
     risk_level: RiskLevel = RiskLevel.MEDIUM
 
 
+class Alert(BaseModel):
+    """An incoming alert (from a JSON file, Alertmanager-ish, or auto-synthesized)."""
+
+    name: str
+    signal: str  # e.g. DeployFailed, HighLatency, PodsDegraded, DependencyDown
+    severity: Severity = Severity.SEV3
+    source: str = "auto"  # "file" | "auto"
+    description: str = ""
+    labels: dict = Field(default_factory=dict)
+
+
+class Mitigation(BaseModel):
+    """A bounded, structured mitigation — stops the bleeding, not a root-cause fix."""
+
+    action: MitigationAction
+    summary: str
+    target_kind: str  # Deployment | Service | ConfigMap
+    target_name: str
+    params: dict = Field(default_factory=dict)  # e.g. {"replicas": 3} or a JSON patch
+    rollback: str = ""
+    validation: str = ""
+    risk_level: RiskLevel = RiskLevel.MEDIUM
+
+
 class ValidationResult(BaseModel):
     healthy: bool = False
     rollout_complete: bool = False
@@ -82,7 +129,8 @@ class AppliedAction(BaseModel):
     # structured rollback so the executor can undo safely (no free-form shell)
     target_kind: str = ""
     target_name: str = ""
-    rollback_patch: str = ""  # JSON strategic-merge patch to restore prior state (Service)
+    rollback_patch: str = ""  # JSON: Service selector patch, {"replicas":N}, or ConfigMap patch
+    mitigation_action: str = ""  # set for on-call mitigations, drives mitigation-aware rollback
 
 
 class AgentState(BaseModel):
@@ -107,6 +155,13 @@ class AgentState(BaseModel):
     # memory recall (past similar incidents + a proven fix pattern)
     recalled: list[str] = Field(default_factory=list)
     matched_pattern: str = ""
+
+    # on-call / incident response
+    alert: Alert | None = None
+    severity: Severity | None = None
+    mitigation: Mitigation | None = None
+    incident_timeline: list[str] = Field(default_factory=list)
+    followups: list[str] = Field(default_factory=list)
 
     # action
     planned_action_block: str = ""

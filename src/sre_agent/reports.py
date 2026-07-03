@@ -26,6 +26,16 @@ def build_report(state: AgentState, settings: Settings) -> str:
     lines.append(f"- **Tool calls:** {state.tool_call_count}")
     lines.append("")
 
+    if state.alert:
+        sev = state.severity.value if state.severity else "?"
+        lines.append("## Alert (on-call)")
+        lines.append(f"- **Severity:** `{sev}`")
+        lines.append(f"- **Alert:** {state.alert.name} (signal=`{state.alert.signal}`, "
+                     f"source={state.alert.source})")
+        if state.alert.description:
+            lines.append(f"- {state.alert.description}")
+        lines.append("")
+
     lines.append("## Incident")
     lines.append(f"- **Category:** `{state.incident.value}`")
     if state.symptoms:
@@ -53,12 +63,17 @@ def build_report(state: AgentState, settings: Settings) -> str:
             lines.append("```")
         lines.append("")
 
-    lines.append("## Proposed fix")
-    if patch:
+    mit = state.mitigation
+    lines.append("## Mitigation" if mit else "## Proposed fix")
+    if patch or mit:
         lines.append("```")
         lines.append(state.planned_action_block)
         lines.append("```")
-        lines.append(f"- **Patch:** `{patch.kubectl_patch}`")
+        if patch:
+            lines.append(f"- **Patch:** `{patch.kubectl_patch}`")
+        elif mit:
+            lines.append(f"- **Action:** `{mit.action.value}` on "
+                         f"{mit.target_kind}/{mit.target_name}")
     else:
         lines.append("- (none)")
     lines.append("")
@@ -91,6 +106,18 @@ def build_report(state: AgentState, settings: Settings) -> str:
             lines.append("- **Related past incidents:**")
             for r in state.recalled:
                 lines.append(f"  - {r}")
+        lines.append("")
+
+    if state.incident_timeline:
+        lines.append("## Incident timeline")
+        for line in state.incident_timeline:
+            lines.append(f"- {line}")
+        lines.append("")
+
+    if state.followups:
+        lines.append("## Follow-ups")
+        for f in state.followups:
+            lines.append(f"- [ ] {f}")
         lines.append("")
 
     lines.append("## Outcome")

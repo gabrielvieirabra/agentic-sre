@@ -1,0 +1,7 @@
+{
+  "name": "DeployFailed-web",
+  "signal": "DeployFailed",
+  "severity": "SEV2",
+  "description": "web v2 rollout is failing (pods not becoming ready after deploy)",
+  "labels": {"app": "web", "team": "sre-lab"}
+}

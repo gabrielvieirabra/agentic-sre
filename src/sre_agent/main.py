@@ -15,7 +15,7 @@ from rich.panel import Panel
 from rich.table import Table
 
 from sre_agent.config import Mode, load_settings
-from sre_agent.loop import run_loop
+from sre_agent.loop import run_loop, run_oncall
 from sre_agent.memory import Memory
 
 # Chaos Scenario Generator: the controlled, local-only faults it may inject.
@@ -25,8 +25,9 @@ app = typer.Typer(add_completion=False, help="Local-first SRE agentic repair loo
 console = Console()
 
 _TERMINAL_STYLE = {
-    "FIXED": "bold green", "IMPROVED": "green", "NO_ACTION_NEEDED": "cyan",
-    "NEEDS_HUMAN": "yellow", "FAILED_SAFELY": "magenta", "ROLLED_BACK": "red",
+    "FIXED": "bold green", "IMPROVED": "green", "MITIGATED": "bold green",
+    "NO_ACTION_NEEDED": "cyan", "NEEDS_HUMAN": "yellow",
+    "FAILED_SAFELY": "magenta", "ROLLED_BACK": "red",
 }
 
 
@@ -61,6 +62,40 @@ def run(
         f"Elapsed: {final.elapsed_seconds:.1f}s\n"
         f"Report: runs/{final.trace_id}/report.md",
         title="Result", border_style=style))
+
+
+@app.command()
+def oncall(
+    scenario: str = typer.Option(None, help="Scenario key (for labeling/report only)."),
+    alert: str = typer.Option(None, help="Path to an alert JSON file (Alertmanager-ish)."),
+    mode: str = typer.Option(None, help="dry-run | suggest-only | apply-local-lab"),
+) -> None:
+    """On-call / incident-response loop: triage an alert, mitigate, comm, follow up."""
+    settings = load_settings()
+    if mode:
+        settings.mode = Mode(mode)
+
+    console.print(Panel.fit(
+        f"[bold]On-Call Incident Response[/bold]\nscenario=[cyan]{scenario or '(ad-hoc)'}[/cyan]  "
+        f"alert=[cyan]{alert or '(auto-detect)'}[/cyan]  mode=[cyan]{settings.mode.value}[/cyan]",
+        border_style="red"))
+
+    final = run_oncall(settings, scenario, alert)
+
+    if final.planned_action_block:
+        console.print(Panel(final.planned_action_block, title="Planned mitigation",
+                            border_style="yellow"))
+
+    ts = final.terminal_state.value if final.terminal_state else "?"
+    style = _TERMINAL_STYLE.get(ts, "white")
+    sev = final.severity.value if final.severity else "?"
+    console.print(Panel.fit(
+        f"Severity: [bold]{sev}[/bold]   Outcome: [{style}]{ts}[/{style}]\n"
+        f"Mitigation: {final.mitigation.summary if final.mitigation else '(none)'}\n"
+        f"Follow-ups: {len(final.followups)}   Tool calls: {final.tool_call_count}   "
+        f"Elapsed: {final.elapsed_seconds:.1f}s\n"
+        f"Channel: runs/{final.trace_id}/incident_channel.md",
+        title="Incident Result", border_style=style))
 
 
 @app.command()

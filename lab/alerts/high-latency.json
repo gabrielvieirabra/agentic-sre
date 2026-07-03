@@ -1,0 +1,7 @@
+{
+  "name": "HighLatency-web",
+  "signal": "HighLatency",
+  "severity": "SEV3",
+  "description": "p95 latency on web above SLO; single replica saturated",
+  "labels": {"app": "web", "team": "sre-lab"}
+}

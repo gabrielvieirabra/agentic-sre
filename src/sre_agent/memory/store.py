@@ -39,9 +39,17 @@ CREATE TABLE IF NOT EXISTS fix_patterns (
     last_ts TEXT,
     PRIMARY KEY (incident, target_kind, patch)
 );
+CREATE TABLE IF NOT EXISTS followups (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts TEXT NOT NULL,
+    trace_id TEXT,
+    incident TEXT,
+    item TEXT,
+    done INTEGER DEFAULT 0
+);
 """
 
-_SUCCESS_STATES = {"FIXED", "IMPROVED", "NO_ACTION_NEEDED"}
+_SUCCESS_STATES = {"FIXED", "IMPROVED", "MITIGATED", "NO_ACTION_NEEDED"}
 
 
 class Memory:
@@ -61,26 +69,49 @@ class Memory:
         ts = datetime.now(UTC).isoformat()
         term = state.terminal_state.value if state.terminal_state else None
         success = 1 if term in _SUCCESS_STATES else 0
+        # The "fix" is a repair patch OR, for on-call runs, a mitigation.
         patch = state.proposed_patch
+        mit = state.mitigation
+        if mit is not None:
+            fix_summary, tgt_kind, tgt_name = mit.summary, mit.target_kind, mit.target_name
+            fix_body = mit.action.value  # pattern keyed on the mitigation action
+        elif patch is not None:
+            fix_summary, tgt_kind, tgt_name = patch.summary, patch.target_kind, patch.target_name
+            fix_body = patch.kubectl_patch
+        else:
+            fix_summary = tgt_kind = tgt_name = fix_body = None
+
         self._conn.execute(
             "INSERT INTO incidents (ts, trace_id, scenario, incident, root_cause, "
             "fix_summary, target_kind, target_name, patch, terminal_state, success, "
             "tool_calls, elapsed) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (ts, state.trace_id, state.scenario, state.incident.value,
              state.hypothesis.root_cause if state.hypothesis else None,
-             patch.summary if patch else None,
-             patch.target_kind if patch else None,
-             patch.target_name if patch else None,
-             patch.kubectl_patch if patch else None,
+             fix_summary, tgt_kind, tgt_name, fix_body,
              term, success, state.tool_call_count, state.elapsed_seconds),
         )
-        # Update the Fix Pattern Library only when a fix was actually applied.
+        # Update the Fix Pattern Library only when a fix/mitigation was actually applied.
         applied = any(a.applied for a in state.applied_actions)
-        if patch and applied and term in {"FIXED", "IMPROVED", "ROLLED_BACK"}:
-            worked = 1 if term in {"FIXED", "IMPROVED"} else 0
-            self._upsert_pattern(state.incident.value, patch.target_kind,
-                                 patch.kubectl_patch, worked, ts)
+        if fix_body and tgt_kind and applied and term in {"FIXED", "IMPROVED", "MITIGATED",
+                                                          "ROLLED_BACK"}:
+            worked = 1 if term in {"FIXED", "IMPROVED", "MITIGATED"} else 0
+            self._upsert_pattern(state.incident.value, tgt_kind, fix_body, worked, ts)
         self._conn.commit()
+
+    def record_followups(self, trace_id: str, incident: str, items: list[str]) -> None:
+        ts = datetime.now(UTC).isoformat()
+        self._conn.executemany(
+            "INSERT INTO followups (ts, trace_id, incident, item) VALUES (?,?,?,?)",
+            [(ts, trace_id, incident, item) for item in items],
+        )
+        self._conn.commit()
+
+    def open_followups(self, limit: int = 50) -> list[dict]:
+        rows = self._conn.execute(
+            "SELECT ts, incident, item FROM followups WHERE done = 0 ORDER BY id DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+        return [dict(r) for r in rows]
 
     def _upsert_pattern(self, incident: str, kind: str, patch: str,
                         worked: int, ts: str) -> None:

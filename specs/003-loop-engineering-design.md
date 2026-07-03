@@ -58,6 +58,7 @@ human_escalation_conditions:
 terminal_states:
   - FIXED               # issue resolved and validated
   - IMPROVED            # measurable improvement, not fully resolved
+  - MITIGATED           # on-call: bleeding stopped, root cause -> follow-up (see 010)
   - NO_ACTION_NEEDED    # already healthy / false alarm
   - NEEDS_HUMAN         # escalated
   - FAILED_SAFELY       # could not fix, no harm done

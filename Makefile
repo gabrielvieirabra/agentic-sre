@@ -47,6 +47,9 @@ history: ## Show run history trend from local memory
 run-agent: ## Run the SRE repair loop. Usage: make run-agent SCENARIO=bad-probe MODE=dry-run
 	uv run sre-agent run --scenario $(SCENARIO) --mode $(MODE)
 
+oncall: ## On-call incident response. Usage: make oncall SCENARIO=bad-deploy ALERT=lab/alerts/bad-deploy.json MODE=apply-local-lab
+	uv run sre-agent oncall --scenario $(SCENARIO) $(if $(ALERT),--alert $(ALERT),) --mode $(MODE)
+
 eval: ## Run the eval suite and score results
 	uv run python -m evals.runner
 

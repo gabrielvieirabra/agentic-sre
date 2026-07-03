@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: sre-lab
+resources:
+  - ../../manifests/base
+# FAULT: replicas dropped to 1 -> single pod carries all load (high latency under traffic).
+# On-call mitigation is an emergency SCALE-OUT (not a manifest fix).
+replicas:
+  - name: web
+    count: 1

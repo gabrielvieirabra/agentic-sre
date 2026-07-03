@@ -48,6 +48,22 @@ make report
 make reset
 ```
 
+### On-call / incident response (mitigation loop)
+
+A second, alert-driven loop that **stops the bleeding fast** (rollback, scale-out, restart,
+dependency fallback), triages by severity, writes an incident-channel transcript, and opens
+follow-ups — separate from the repair loop. See [`specs/010-oncall-incident-response.md`](specs/010-oncall-incident-response.md).
+
+```bash
+make inject SCENARIO=bad-deploy                 # a bad v2 rollout
+make oncall SCENARIO=bad-deploy ALERT=lab/alerts/bad-deploy.json MODE=apply-local-lab
+#   -> triage SEV2 -> ROLLBACK -> MITIGATED; timeline in runs/<id>/incident_channel.md
+
+make inject SCENARIO=overloaded                 # single replica under load
+make oncall SCENARIO=overloaded ALERT=lab/alerts/high-latency.json MODE=apply-local-lab
+#   -> SCALE_OUT to 3 replicas -> MITIGATED
+```
+
 ## Safety model (default = dry-run)
 
 Modes: `dry-run` · `suggest-only` · `apply-local-lab`. Before any mutation the agent prints a
@@ -57,7 +73,7 @@ is known, and a validation command is defined. Details: [`specs/007-safety-and-p
 
 ## Terminal states
 
-`FIXED` · `IMPROVED` · `NO_ACTION_NEEDED` · `NEEDS_HUMAN` · `FAILED_SAFELY` · `ROLLED_BACK`.
+`FIXED` · `IMPROVED` · `MITIGATED` · `NO_ACTION_NEEDED` · `NEEDS_HUMAN` · `FAILED_SAFELY` · `ROLLED_BACK`.
 The loop never runs forever: bounded by max iterations, max tool calls, and max elapsed time.
 
 ## Repository layout

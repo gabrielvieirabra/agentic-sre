@@ -1,0 +1,7 @@
+{
+  "name": "PodsDegraded-web",
+  "signal": "PodsDegraded",
+  "severity": "SEV3",
+  "description": "web pods degraded / possible config drift; restart to recover",
+  "labels": {"app": "web", "team": "sre-lab"}
+}

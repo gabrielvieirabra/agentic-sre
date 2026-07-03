@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: sre-lab
+resources:
+  - ../../manifests/base
+# FAULT: a "v2" deploy that rolls out a broken image (simulates a bad deploy).
+# This creates a new ReplicaSet revision on top of the healthy baseline, so the
+# on-call mitigation is a ROLLBACK (rollout undo) to the previous good revision.
+patches:
+  - target:
+      kind: Deployment
+      name: web
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/image
+        value: nginx:2.0-broken-deploy
