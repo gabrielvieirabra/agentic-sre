@@ -83,6 +83,16 @@ def build_report(state: AgentState, settings: Settings) -> str:
     lines.append(f"- **After:**  {a_detail} (healthy={a_healthy})")
     lines.append("")
 
+    if state.recalled or state.matched_pattern:
+        lines.append("## Memory")
+        if state.matched_pattern:
+            lines.append(f"- **Fix pattern:** {state.matched_pattern}")
+        if state.recalled:
+            lines.append("- **Related past incidents:**")
+            for r in state.recalled:
+                lines.append(f"  - {r}")
+        lines.append("")
+
     lines.append("## Outcome")
     lines.append(f"- **{state.terminal_state.value if state.terminal_state else '?'}** — "
                  f"{state.escalation_reason}")

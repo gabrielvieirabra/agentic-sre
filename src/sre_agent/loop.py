@@ -12,6 +12,7 @@ from pathlib import Path
 from sre_agent.config import Settings
 from sre_agent.graph import build_graph
 from sre_agent.llm import LLM
+from sre_agent.memory import Memory
 from sre_agent.observability import RunLogger, new_trace_id
 from sre_agent.reports import build_report
 from sre_agent.state import AgentState
@@ -23,7 +24,8 @@ def run_loop(settings: Settings, scenario: str | None) -> AgentState:
     trace_id = new_trace_id(scenario)
     logger = RunLogger(settings.runs_dir, trace_id, settings.log_level)
     tools = Tools(settings, logger)
-    graph = build_graph(settings, tools, LLM(settings), logger)
+    memory = Memory(settings.memory_db)
+    graph = build_graph(settings, tools, LLM(settings), logger, memory)
 
     init = AgentState(
         trace_id=trace_id,
@@ -53,4 +55,5 @@ def run_loop(settings: Settings, scenario: str | None) -> AgentState:
     reports_dir = Path("reports")
     reports_dir.mkdir(exist_ok=True)
     (reports_dir / f"{trace_id}.md").write_text(report_md)
+    memory.close()
     return final

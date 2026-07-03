@@ -104,6 +104,10 @@ class AgentState(BaseModel):
     hypothesis: Hypothesis | None = None
     proposed_patch: ProposedPatch | None = None
 
+    # memory recall (past similar incidents + a proven fix pattern)
+    recalled: list[str] = Field(default_factory=list)
+    matched_pattern: str = ""
+
     # action
     planned_action_block: str = ""
     applied_actions: list[AppliedAction] = Field(default_factory=list)

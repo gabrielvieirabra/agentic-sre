@@ -37,6 +37,12 @@ inject: ## Inject a broken scenario. Usage: make inject SCENARIO=bad-probe
 reset: ## Reset the lab back to healthy baseline
 	bash scripts/reset_lab.sh
 
+chaos: ## Chaos generator: inject a controlled fault. Usage: make chaos SCENARIO=bad-readiness-probe
+	uv run sre-agent chaos --scenario $(SCENARIO)
+
+history: ## Show run history trend from local memory
+	uv run sre-agent report --history
+
 ## ---- Phase 4+: agent / evals / reports (implemented in later chunks) ----
 run-agent: ## Run the SRE repair loop. Usage: make run-agent SCENARIO=bad-probe MODE=dry-run
 	uv run sre-agent run --scenario $(SCENARIO) --mode $(MODE)

@@ -21,7 +21,7 @@ The build must proceed in reviewable phases with a crisp definition of "MVP done
 | 6 Evals | runner + scoring + 3 cases + Regression Guard | `make eval` prints scores + terminal state |
 | 7 Memory + reports | SQLite memory + postmortem; chaos gen; fix library | report per run; lessons stored |
 
-**Current status:** Phases 1–3 delivered in this chunk. Phases 4–7 are the next chunks.
+**Current status:** All 7 phases delivered and verified live. All 12 MVP criteria met.
 
 ## MVP acceptance criteria (from product spec)
 1. Runs fully locally (no cloud/paid model APIs).
@@ -37,10 +37,11 @@ The build must proceed in reviewable phases with a crisp definition of "MVP done
 11. A report is generated for every run.
 12. No cloud API or external model API is required.
 
-## Creative capabilities (committed)
-- **Chaos Scenario Generator** (Phase 7): parameterized controlled failures for training/evals.
-- **Fix Pattern Library** (Phase 7): reusable fix templates learned from successful repairs.
-- **Regression Guard** (Phase 6): re-run prior evals after each fix.
+## Creative capabilities (delivered)
+- **Chaos Scenario Generator** (Phase 7): `sre-agent chaos` injects a controlled local fault.
+- **Fix Pattern Library** (Phase 7): learns which structured patch worked per incident and
+  recalls it on future runs ("known fix pattern, N prior successes").
+- **Regression Guard** (Phase 6): flags any eval case that previously passed and now fails.
 Optional backlog: incident game mode, K8s smell detector, YAML diff risk scorer, probe tuner,
 resource request/limit recommender, runbook generator, production-readiness score.
 

@@ -14,6 +14,7 @@ from langgraph.graph import END, START, StateGraph
 
 from sre_agent.config import Settings
 from sre_agent.llm import LLM
+from sre_agent.memory import Memory
 from sre_agent.observability import RunLogger
 from sre_agent.safety import check_gate, planned_action_block
 from sre_agent.state import (
@@ -55,11 +56,14 @@ class PlanLLM(BaseModel):
 
 
 class Nodes:
-    def __init__(self, settings: Settings, tools: Tools, llm: LLM, logger: RunLogger) -> None:
+    def __init__(self, settings: Settings, tools: Tools, llm: LLM, logger: RunLogger,
+                 memory: Memory) -> None:
         self.s = settings
         self.t = tools
         self.llm = llm
         self.log = logger
+        self.mem = memory
+        self._t0 = time.time()  # run start, for elapsed captured inside the graph
 
     # ---- observation helpers ----------------------------------------
     def _snapshot(self) -> dict:
@@ -197,10 +201,17 @@ class Nodes:
 
     def hypothesis_generator(self, state: AgentState) -> dict:
         self.log.set_node("hypothesis_generator")
+        # Recall past incidents of the same category to inform the diagnosis (loop memory).
+        past = self.mem.recall_incidents(state.incident.value, limit=3)
+        recalled = [f"{p['ts'][:19]} {p['scenario']}: {p['fix_summary']} "
+                    f"-> {p['terminal_state']}" for p in past if p.get("fix_summary")]
+        if recalled:
+            self.log.info("recalled past incidents", count=len(recalled))
         context = {
             "incident": state.incident.value,
             "symptoms": [s.model_dump() for s in state.symptoms],
             "evidence": [e.model_dump() for e in state.evidence],
+            "past_incidents": recalled,
         }
         out = self.llm.structured(
             system=("You are a senior SRE. Diagnose the single most likely root cause of a "
@@ -215,11 +226,20 @@ class Nodes:
             hyp = Hypothesis(root_cause=out.root_cause, confidence=out.confidence,
                              rationale=out.rationale)
         self.log.info("hypothesis", root_cause=hyp.root_cause, confidence=hyp.confidence)
-        return {"hypothesis": hyp}
+        return {"hypothesis": hyp, "recalled": recalled}
 
     def plan_generator(self, state: AgentState) -> dict:
         self.log.set_node("plan_generator")
         template = _template_patch(state.incident, state.cluster_snapshot)
+
+        # Fix Pattern Library: has a patch for this incident/target worked before?
+        matched = ""
+        if template is not None:
+            pat = self.mem.best_fix_pattern(state.incident.value, template.target_kind)
+            if pat:
+                matched = (f"Known fix pattern for {state.incident.value} "
+                           f"({pat['successes']} prior success(es)).")
+                self.log.info("matched fix pattern", **pat)
 
         # Ask the LLM for a structured patch; fall back to the deterministic template.
         patch = template
@@ -251,7 +271,7 @@ class Nodes:
             else:
                 self.log.info("plan from deterministic template (LLM patch unusable)")
 
-        return {"proposed_patch": patch}
+        return {"proposed_patch": patch, "matched_pattern": matched}
 
     def safety_gate(self, state: AgentState) -> dict:
         self.log.set_node("safety_gate")
@@ -344,7 +364,8 @@ class Nodes:
         score = _score(state, terminal)
         self.log.info("evaluated", terminal=terminal.value, reason=reason, score=score)
         return {"terminal_state": terminal, "escalation_reason": reason, "eval_score": score,
-                "tool_call_count": self.t.calls}
+                "tool_call_count": self.t.calls,
+                "elapsed_seconds": round(time.time() - self._t0, 2)}
 
     def _rollback(self, state: AgentState) -> None:
         for a in state.applied_actions:
@@ -360,7 +381,6 @@ class Nodes:
                              rollback="(rollback of a rollback is a no-op)")
 
     def memory_writer(self, state: AgentState) -> dict:
-        # Full memory store is Phase 7; here we append a compact lesson record.
         self.log.set_node("memory_writer")
         lesson = {
             "scenario": state.scenario, "incident": state.incident.value,
@@ -369,7 +389,12 @@ class Nodes:
             "fix": state.proposed_patch.summary if state.proposed_patch else None,
         }
         self.log.write_json("lesson.json", lesson)
-        self.log.info("memory written (compact)", **{k: v for k, v in lesson.items() if v})
+        # Persist to the local SQLite memory (incidents + Fix Pattern Library).
+        try:
+            self.mem.record_run(state)
+        except Exception as e:  # noqa: BLE001 - memory must never break the loop
+            self.log.warn("memory write failed", error=str(e))
+        self.log.info("memory written", **{k: v for k, v in lesson.items() if v})
         return {}
 
 
@@ -457,8 +482,8 @@ def _route_after_classify(state: AgentState) -> str:
     return "evaluator" if state.incident is IncidentCategory.NONE else "evidence_collector"
 
 
-def build_graph(settings: Settings, tools: Tools, llm: LLM, logger: RunLogger):
-    n = Nodes(settings, tools, llm, logger)
+def build_graph(settings: Settings, tools: Tools, llm: LLM, logger: RunLogger, memory: Memory):
+    n = Nodes(settings, tools, llm, logger, memory)
     g = StateGraph(AgentState)
 
     g.add_node("hardware_profiler", n.hardware_profiler)

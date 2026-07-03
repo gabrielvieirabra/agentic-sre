@@ -72,10 +72,14 @@ scripts/   inspect_mac / setup_ollama / setup_minikube / run_lab / inject_bug / 
 ## Status
 
 Built in phases (see [`specs/009-roadmap.md`](specs/009-roadmap.md)).
-**Delivered:** Phase 1 (specs) · Phase 2 (runtime scripts) · Phase 3 (lab + 3 scenarios) ·
-Phase 4 (dry-run loop) · Phase 5 (safe apply — heals all 3 → `FIXED`, forced regression
-→ `ROLLED_BACK`) · **Phase 6 (evals)** — `make eval` runs all 3 cases with deterministic
-rubric scoring (**3/3 PASS @ 1.00**) plus a **Regression Guard** that flags any case which
-used to pass but now fails. All 12 MVP acceptance criteria are met.
-**Next:** Phase 7 — local memory (SQLite) + richer postmortems; creative features
-(Chaos Generator, Fix Pattern Library).
+**All 7 phases delivered** (see [`specs/009-roadmap.md`](specs/009-roadmap.md)); all 12 MVP
+acceptance criteria met.
+- **P1** specs · **P2** runtime scripts · **P3** lab + 3 scenarios · **P4** dry-run loop ·
+  **P5** safe apply (heals all 3 → `FIXED`; forced regression → `ROLLED_BACK`) ·
+  **P6** evals (`make eval` → 3/3 PASS @ 1.00) + Regression Guard ·
+  **P7** local SQLite memory + postmortems with recall.
+- **Creative features:** Regression Guard · Fix Pattern Library (learns proven fixes and recalls
+  them, e.g. "known fix pattern, N prior successes") · Chaos Scenario Generator (`sre-agent chaos`).
+- **Memory:** `sre-agent report --history` shows the run trend; each run recalls related past
+  incidents into its postmortem. `memory/sre_memory.sqlite` stores incidents + fix patterns
+  (never secrets).
