@@ -1,5 +1,7 @@
 # sre-agent — Local-First SRE Agentic Platform
 
+[![CI](https://github.com/gabrielvieirabra/agentic-sre/actions/workflows/ci.yml/badge.svg)](https://github.com/gabrielvieirabra/agentic-sre/actions/workflows/ci.yml)
+
 An autonomous SRE loop that **detects → investigates → fixes → validates → documents** issues
 inside a local **Minikube** cluster. It intentionally injects controlled Kubernetes bugs and
 performance problems into an `sre-lab` namespace, then uses a **LangGraph** maker/checker/judge
