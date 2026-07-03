@@ -122,3 +122,29 @@ def test_gate_hpa_bounds():
 def test_gate_rejects_bad_replicas():
     r = _rec(action=OptimizationAction.ADJUST_REPLICAS, params={"replicas": 42})
     assert check_recommendation_gate(r, _settings()).allow_apply is False
+
+
+# ---- hey load-test parsing ------------------------------------------------
+def test_parse_hey_extracts_metrics():
+    from sre_agent.tools.kubectl import _parse_hey
+    out = """
+Summary:
+  Total: 8.0 secs
+  Requests/sec: 1523.4
+Latency distribution:
+  50% in 0.010 secs
+  95% in 0.042 secs
+  99% in 0.090 secs
+Status code distribution:
+  [200] 12000 responses
+  [503] 120 responses
+"""
+    m = _parse_hey(out)
+    assert m["rps"] == 1523.4
+    assert m["p95_ms"] == 42.0
+    assert 0.0 < m["error_rate"] < 0.02  # 120 / 12120
+
+
+def test_parse_hey_none_on_garbage():
+    from sre_agent.tools.kubectl import _parse_hey
+    assert _parse_hey("no useful output") is None

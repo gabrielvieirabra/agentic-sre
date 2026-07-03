@@ -66,6 +66,35 @@ def test_dry_run_proposed_but_not_fixed_does_not_pass():
     assert r.dimensions["rollback_available"] == 1.0
 
 
+def test_optimize_case_scores_on_issue_and_recommendation():
+    """An optimize run is scored against efficiency_issue + recommendation action."""
+    from sre_agent.state import EfficiencyIssue, OptimizationAction, Recommendation
+    case = {
+        "name": "eval_opt", "scenario": "over-provisioned", "expected_issue": "over-provisioned",
+        "expected_action": "right-size-down",
+        "expected_target": {"kind": "Deployment", "name": "web"},
+        "expected_terminal_state": "IMPROVED", "pass_threshold": 0.8,
+        "efficiency_max_tool_calls": 16, "rubric": CASE["rubric"],
+    }
+    s = AgentState(
+        trace_id="t", goal="g", mode="apply-local-lab", scenario="over-provisioned",
+        efficiency_issue=EfficiencyIssue.OVER_PROVISIONED,
+        hypothesis=Hypothesis(root_cause="reserving 500m but using ~1m; heavy over-provisioning."),
+        recommendation=Recommendation(action=OptimizationAction.RIGHT_SIZE_DOWN, summary="cut",
+                                      target_kind="Deployment", target_name="web",
+                                      params={"patch": "{}"}, rollback="restore",
+                                      validation="ready"),
+        applied_actions=[AppliedAction(description="rs", command="c", applied=True,
+                                       target_kind="Deployment", target_name="web")],
+        validation=ValidationResult(healthy=True, ready_replicas=2, desired_replicas=2,
+                                    endpoints=2),
+        terminal_state=TerminalState.IMPROVED, tool_call_count=12,
+    )
+    r = score_case(case, s)
+    assert r.passed is True and r.overall >= 0.95
+    assert r.dimensions["correct_diagnosis"] == 1.0
+
+
 def test_unrelated_change_penalized():
     s = _fixed_state()
     s.applied_actions.append(

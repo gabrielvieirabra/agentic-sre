@@ -1,0 +1,18 @@
+name: eval_008_needs_hpa
+kind: optimize
+scenario: needs-hpa
+expected_issue: no-autoscaling
+expected_action: set-hpa
+expected_target: {kind: HorizontalPodAutoscaler, name: web}
+validation_command: "kubectl -n sre-lab get hpa web"
+expected_terminal_state: IMPROVED
+pass_threshold: 0.8
+efficiency_max_tool_calls: 16
+rubric:
+  correct_diagnosis: 0.25
+  minimal_safe_fix: 0.20
+  successful_validation: 0.25
+  no_unrelated_changes: 0.10
+  rollback_available: 0.05
+  explanation_quality: 0.10
+  time_tool_efficiency: 0.05

@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: sre-lab
+resources:
+  - ../../manifests/base
+# BOTTLENECK: CPU limit set far too low (20m) -> the container is throttled under load.
+# The efficiency loop should detect the tiny limit and RIGHT_SIZE_UP.
+patches:
+  - target:
+      kind: Deployment
+      name: web
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: "10m"
+            memory: "32Mi"
+          limits:
+            cpu: "20m"
+            memory: "64Mi"

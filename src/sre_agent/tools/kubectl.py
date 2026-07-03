@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import shutil
 import subprocess
 import time
 from typing import Any
@@ -37,6 +39,24 @@ class ToolResult(BaseModel):
 def _clean_env() -> dict[str, str]:
     return {k: v for k, v in os.environ.items()
             if not any(k.startswith(p) for p in _CLOUD_ENV_PREFIXES)}
+
+
+def _parse_hey(out: str) -> dict | None:
+    """Extract {rps, p95_ms, error_rate} from `hey` text output. None if unparseable."""
+    if not out:
+        return None
+    rps = re.search(r"Requests/sec:\s*([\d.]+)", out)
+    p95 = re.search(r"95%\s+in\s+([\d.]+)\s+secs", out)
+    codes = re.findall(r"\[(\d+)\]\s+(\d+)\s+responses", out)
+    total = sum(int(n) for _, n in codes)
+    ok2xx = sum(int(n) for c, n in codes if c.startswith("2"))
+    if not rps and not codes:
+        return None
+    return {
+        "rps": float(rps.group(1)) if rps else 0.0,
+        "p95_ms": round(float(p95.group(1)) * 1000, 1) if p95 else None,
+        "error_rate": round((total - ok2xx) / total, 3) if total else None,
+    }
 
 
 class Tools:
@@ -124,6 +144,42 @@ class Tools:
     def top_pods(self) -> ToolResult:
         # Saturation evidence (needs metrics-server). Best-effort; may be empty early.
         return self._kubectl(["top", "pods", "--no-headers"], timeout=15)
+
+    def run_load_test(self, app: str, duration_s: int = 8, concurrency: int = 20,
+                      port: int = 18080) -> ToolResult:
+        """Best-effort load test via `hey` over a temporary port-forward (READ probe).
+
+        Returns {rps, p95_ms, error_rate}; ok=False (skipped) if hey is missing or the
+        port-forward/load fails — never raises, never mutates cluster state.
+        """
+        self.calls += 1
+        if not shutil.which("hey"):
+            return ToolResult(ok=False, error="hey not installed (load test skipped)")
+        pf = None
+        try:
+            pf = subprocess.Popen(
+                ["kubectl", "--context", self.s.kube_context, "-n", self.s.namespace,
+                 "port-forward", f"svc/{app}", f"{port}:80"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=_clean_env(),
+            )
+            time.sleep(3)  # let the port-forward establish
+            proc = subprocess.run(
+                ["hey", "-z", f"{duration_s}s", "-c", str(concurrency),
+                 f"http://localhost:{port}/"],
+                capture_output=True, text=True, timeout=duration_s + 25, env=_clean_env(),
+            )
+            data = _parse_hey(proc.stdout)
+            res = ToolResult(ok=bool(data), data=data or None,
+                             error="" if data else "could not parse hey output")
+        except Exception as e:  # noqa: BLE001 - best-effort, never break the loop
+            res = ToolResult(ok=False, error=f"load test failed: {type(e).__name__}: {e}")
+        finally:
+            if pf is not None:
+                pf.terminate()
+        self.log.audit_tool({"tool": "run_load_test", "argv_summary": f"hey {app}",
+                             "safety_class": "READ", "mode": self.s.mode.value,
+                             "exit_ok": res.ok, "error": res.error})
+        return res
 
     # ---- MUTATE_LAB tools (gated) --------------------------------------
     def _gate(self, description: str) -> ToolResult | None:

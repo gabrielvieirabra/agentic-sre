@@ -122,6 +122,18 @@ class OptimizeNodes(Nodes):
                       smells=len(smells))
         return {"analysis": analysis, "efficiency_issue": issue}
 
+    def load_probe(self, state: AgentState) -> dict:
+        """Best-effort load test (opt-in via --load) as evidence; never gates the loop."""
+        self.log.set_node("load_probe")
+        if not state.load_test:
+            return {}
+        res = self.t.run_load_test(state.target_app)
+        if res.ok:
+            self.log.info("load probe", **res.data)
+            return {"load_result": res.data}
+        self.log.info("load probe skipped", reason=res.error)
+        return {}
+
     def capacity_planner(self, state: AgentState) -> dict:
         self.log.set_node("capacity_planner")
         a = state.analysis
@@ -357,6 +369,7 @@ def build_optimize_graph(settings: Settings, tools: Tools, llm: LLM, logger: Run
     g = StateGraph(AgentState)
     g.add_node("cluster_observer", n.cluster_observer)
     g.add_node("utilization_analyzer", n.utilization_analyzer)
+    g.add_node("load_probe", n.load_probe)
     g.add_node("capacity_planner", n.capacity_planner)
     g.add_node("efficiency_planner", n.efficiency_planner)
     g.add_node("recommendation_gate", n.recommendation_gate)
@@ -368,7 +381,8 @@ def build_optimize_graph(settings: Settings, tools: Tools, llm: LLM, logger: Run
 
     g.add_edge(START, "cluster_observer")
     g.add_edge("cluster_observer", "utilization_analyzer")
-    g.add_edge("utilization_analyzer", "capacity_planner")
+    g.add_edge("utilization_analyzer", "load_probe")
+    g.add_edge("load_probe", "capacity_planner")
     g.add_edge("capacity_planner", "efficiency_planner")
     g.add_edge("efficiency_planner", "recommendation_gate")
     g.add_edge("recommendation_gate", "recommendation_executor")

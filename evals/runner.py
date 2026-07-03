@@ -22,7 +22,7 @@ from rich.table import Table
 
 from evals.scoring import CaseResult, score_case
 from sre_agent.config import Mode, load_settings
-from sre_agent.loop import run_loop, run_oncall
+from sre_agent.loop import run_loop, run_oncall, run_optimize
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CASES_DIR = REPO_ROOT / "evals" / "cases"
@@ -55,6 +55,8 @@ def run_case(case: dict) -> CaseResult:
     if kind == "oncall":
         alert = str(REPO_ROOT / case["alert"]) if case.get("alert") else None
         state = run_oncall(settings, scenario, alert)
+    elif kind == "optimize":
+        state = run_optimize(settings, scenario, case.get("app", "web"), case.get("peak"))
     else:
         state = run_loop(settings, scenario)
     return score_case(case, state)

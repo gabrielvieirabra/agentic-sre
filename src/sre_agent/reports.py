@@ -81,6 +81,13 @@ def build_report(state: AgentState, settings: Settings) -> str:
             lines.append(f"- **Issue:** `{state.efficiency_issue.value}`")
         lines.append("")
 
+    if state.load_result:
+        lr = state.load_result
+        lines.append("## Load test (hey)")
+        lines.append(f"- rps={lr.get('rps')}  p95={lr.get('p95_ms')}ms  "
+                     f"error_rate={lr.get('error_rate')}")
+        lines.append("")
+
     if state.capacity_plan:
         cp = state.capacity_plan
         lines.append("## Capacity plan")

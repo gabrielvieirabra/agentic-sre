@@ -103,6 +103,7 @@ def optimize(
     scenario: str = typer.Option(None, help="Scenario key (for labeling/report only)."),
     app_name: str = typer.Option("web", "--app", help="Lab app to optimize (web | depsvc)."),
     peak: float = typer.Option(None, help="Peak traffic multiplier for capacity planning."),
+    load: bool = typer.Option(False, "--load", help="Run a best-effort hey load test as evidence."),
     mode: str = typer.Option(None, help="dry-run | suggest-only | apply-local-lab"),
 ) -> None:
     """Efficiency / capacity / cost loop: analyze utilization, right-size, tune autoscaling."""
@@ -117,7 +118,7 @@ def optimize(
         f"mode=[cyan]{settings.mode.value}[/cyan]",
         border_style="blue"))
 
-    final = run_optimize(settings, scenario, app_name, peak)
+    final = run_optimize(settings, scenario, app_name, peak, load)
 
     if final.planned_action_block:
         console.print(Panel(final.planned_action_block, title="Planned optimization",

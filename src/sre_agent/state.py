@@ -223,6 +223,7 @@ class AgentState(BaseModel):
     recommendation: Recommendation | None = None
     capacity_plan: CapacityPlan | None = None
     load_result: dict | None = None
+    load_test: bool = False  # opt-in: run a best-effort hey load test as evidence
     peak_multiplier: float = 2.0
 
     # action

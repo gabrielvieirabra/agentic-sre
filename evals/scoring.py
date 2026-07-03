@@ -25,22 +25,30 @@ def score_case(case: dict, state: AgentState) -> CaseResult:
     rubric: dict[str, float] = case["rubric"]
     tgt = case.get("expected_target", {})
     tgt_kind, tgt_name = tgt.get("kind"), tgt.get("name")
-    # the "fix" is a repair patch OR an on-call mitigation
-    fix = state.mitigation or state.proposed_patch
-    expected_action = case.get("expected_action")  # on-call cases only
+    # the "fix" is a repair patch, an on-call mitigation, or an efficiency recommendation
+    fix = state.mitigation or state.recommendation or state.proposed_patch
+    action_val = None
+    if state.mitigation:
+        action_val = state.mitigation.action.value
+    elif state.recommendation:
+        action_val = state.recommendation.action.value
+    expected_action = case.get("expected_action")  # on-call / optimize cases
     applied = state.applied_actions
 
     d: dict[str, float] = {}
 
-    # correct_diagnosis: deterministic incident classification matches expectation
-    d["correct_diagnosis"] = 1.0 if state.incident.value == case["expected_incident"] else 0.0
+    # correct_diagnosis: deterministic classification matches expectation (incident or issue)
+    if "expected_issue" in case:
+        got = state.efficiency_issue.value if state.efficiency_issue else None
+        d["correct_diagnosis"] = 1.0 if got == case["expected_issue"] else 0.0
+    else:
+        d["correct_diagnosis"] = 1.0 if state.incident.value == case["expected_incident"] else 0.0
 
-    # minimal_safe_fix: fix targets exactly the expected resource (+ action, for on-call)
+    # minimal_safe_fix: fix targets exactly the expected resource (+ action, when specified)
     fix_targets_expected = bool(
         fix and fix.target_kind == tgt_kind and fix.target_name == tgt_name)
     if expected_action is not None:
-        action_ok = bool(state.mitigation and state.mitigation.action.value == expected_action)
-        fix_targets_expected = fix_targets_expected and action_ok
+        fix_targets_expected = fix_targets_expected and action_val == expected_action
     if fix_targets_expected and len(applied) <= 1:
         d["minimal_safe_fix"] = 1.0
     elif fix_targets_expected:

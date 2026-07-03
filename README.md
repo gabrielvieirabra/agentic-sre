@@ -94,6 +94,10 @@ make optimize SCENARIO=needs-hpa MODE=apply-local-lab
 
 make optimize SCENARIO=needs-hpa PEAK=3 MODE=apply-local-lab
 #   -> capacity plan for 3x peak -> ADJUST_REPLICAS -> IMPROVED
+
+make inject SCENARIO=cpu-throttling            # CPU limit 20m (throttled)
+uv run sre-agent optimize --scenario cpu-throttling --load --mode apply-local-lab
+#   -> RIGHT_SIZE_UP (raise CPU limit); --load runs a best-effort hey load test as evidence
 ```
 
 Efficiency catalog: `over-provisioned → right-size-down` · `no-autoscaling → set-hpa` ·

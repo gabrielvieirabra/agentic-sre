@@ -92,7 +92,7 @@ def run_oncall(settings: Settings, scenario: str | None,
 
 
 def run_optimize(settings: Settings, scenario: str | None, app: str = "web",
-                 peak: float | None = None) -> AgentState:
+                 peak: float | None = None, load_test: bool = False) -> AgentState:
     """Run the efficiency/capacity/cost loop once and return the final AgentState."""
     trace_id = new_trace_id(scenario or "optimize")
     logger = RunLogger(settings.runs_dir, trace_id, settings.log_level)
@@ -101,7 +101,7 @@ def run_optimize(settings: Settings, scenario: str | None, app: str = "web",
     graph = build_optimize_graph(settings, tools, LLM(settings), logger, memory)
 
     init = AgentState(trace_id=trace_id, goal=_GOAL_OPTIMIZE, mode=settings.mode.value,
-                      scenario=scenario, target_app=app,
+                      scenario=scenario, target_app=app, load_test=load_test,
                       peak_multiplier=peak if peak is not None else settings.peak_multiplier)
     start = time.time()
     final = AgentState.model_validate(graph.invoke(init, config={"recursion_limit": 50}))
