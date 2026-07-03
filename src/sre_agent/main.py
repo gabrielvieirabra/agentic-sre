@@ -15,7 +15,7 @@ from rich.panel import Panel
 from rich.table import Table
 
 from sre_agent.config import Mode, load_settings
-from sre_agent.loop import run_loop, run_oncall
+from sre_agent.loop import run_loop, run_oncall, run_optimize
 from sre_agent.memory import Memory
 
 # Chaos Scenario Generator: the controlled, local-only faults it may inject.
@@ -96,6 +96,44 @@ def oncall(
         f"Elapsed: {final.elapsed_seconds:.1f}s\n"
         f"Channel: runs/{final.trace_id}/incident_channel.md",
         title="Incident Result", border_style=style))
+
+
+@app.command()
+def optimize(
+    scenario: str = typer.Option(None, help="Scenario key (for labeling/report only)."),
+    app_name: str = typer.Option("web", "--app", help="Lab app to optimize (web | depsvc)."),
+    peak: float = typer.Option(None, help="Peak traffic multiplier for capacity planning."),
+    mode: str = typer.Option(None, help="dry-run | suggest-only | apply-local-lab"),
+) -> None:
+    """Efficiency / capacity / cost loop: analyze utilization, right-size, tune autoscaling."""
+    settings = load_settings()
+    if mode:
+        settings.mode = Mode(mode)
+
+    console.print(Panel.fit(
+        f"[bold]Efficiency / Capacity / Cost[/bold]\napp=[cyan]{app_name}[/cyan]  "
+        f"scenario=[cyan]{scenario or '(current)'}[/cyan]  "
+        f"peak=[cyan]{peak or settings.peak_multiplier}x[/cyan]  "
+        f"mode=[cyan]{settings.mode.value}[/cyan]",
+        border_style="blue"))
+
+    final = run_optimize(settings, scenario, app_name, peak)
+
+    if final.planned_action_block:
+        console.print(Panel(final.planned_action_block, title="Planned optimization",
+                            border_style="yellow"))
+
+    ts = final.terminal_state.value if final.terminal_state else "?"
+    style = _TERMINAL_STYLE.get(ts, "white")
+    issue = final.efficiency_issue.value if final.efficiency_issue else "?"
+    rec = final.recommendation
+    console.print(Panel.fit(
+        f"Issue: [bold]{issue}[/bold]   Outcome: [{style}]{ts}[/{style}]\n"
+        f"Recommendation: {rec.summary if rec else '(none)'}\n"
+        f"Savings: {rec.est_savings if rec else '-'}   Tool calls: {final.tool_call_count}   "
+        f"Elapsed: {final.elapsed_seconds:.1f}s\n"
+        f"Report: runs/{final.trace_id}/report.md",
+        title="Efficiency Result", border_style=style))
 
 
 @app.command()

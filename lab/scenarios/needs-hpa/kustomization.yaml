@@ -1,0 +1,7 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: sre-lab
+# No patch: deploys the healthy baseline web (modest requests, NO HorizontalPodAutoscaler).
+# The efficiency loop should detect the missing HPA and SET_HPA for autoscaling.
+resources:
+  - ../../manifests/base

@@ -11,7 +11,13 @@ import json
 from pydantic import BaseModel
 
 from sre_agent.config import Mode, Settings
-from sre_agent.state import Mitigation, MitigationAction, ProposedPatch
+from sre_agent.state import (
+    Mitigation,
+    MitigationAction,
+    OptimizationAction,
+    ProposedPatch,
+    Recommendation,
+)
 
 # Only these kinds are ever eligible for auto-apply in the lab.
 _ALLOWED_KINDS = {"Deployment", "Service"}
@@ -142,3 +148,69 @@ def check_mitigation_gate(m: Mitigation | None, settings: Settings) -> GateDecis
 
     return GateDecision(allow_apply=True,
                         reason=f"mitigation {m.action} within sre-lab scope")
+
+
+# ---- efficiency / capacity recommendation gate ----------------------------
+_RIGHT_SIZE_ACTIONS = {OptimizationAction.RIGHT_SIZE_DOWN, OptimizationAction.RIGHT_SIZE_UP}
+
+
+def recommendation_action_block(r: Recommendation, settings: Settings) -> str:
+    return (
+        "Planned action:  [{action}] {summary}\n"
+        "Reason:          efficiency / capacity / cost improvement\n"
+        "Files/resources: {kind}/{name} in ns={ns} (context={ctx}) params={params}\n"
+        "Rollback:        {rollback}\n"
+        "Validation:      {validation}\n"
+        "Est. savings:    {savings}\n"
+        "Risk level:      {risk}"
+    ).format(
+        action=r.action.value, summary=r.summary, kind=r.target_kind, name=r.target_name,
+        ns=settings.namespace, ctx=settings.kube_context, params=r.params or "{}",
+        rollback=r.rollback or "(none)", validation=r.validation or "(none)",
+        savings=r.est_savings or "(n/a)", risk=r.risk_level.value,
+    )
+
+
+def check_recommendation_gate(r: Recommendation | None, settings: Settings) -> GateDecision:
+    """Auto-apply an efficiency recommendation ONLY when every safety condition holds."""
+    if r is None:
+        return GateDecision(allow_apply=False, reason="no recommendation proposed")
+    if settings.mode is not Mode.APPLY_LOCAL_LAB:
+        return GateDecision(allow_apply=False,
+                            reason=f"mode={settings.mode.value}: mutation not permitted")
+    if r.action not in set(OptimizationAction):
+        return GateDecision(allow_apply=False, reason=f"unknown action '{r.action}'")
+    if not r.rollback or not r.validation:
+        return GateDecision(allow_apply=False, reason="rollback and validation must be defined")
+
+    deploy_actions = _RIGHT_SIZE_ACTIONS | {OptimizationAction.ADJUST_REPLICAS}
+    if r.action in deploy_actions and (
+            r.target_kind != "Deployment" or r.target_name not in _ALLOWED_DEPLOYS):
+        return GateDecision(allow_apply=False,
+                            reason=f"{r.action} must target a lab Deployment {_ALLOWED_DEPLOYS}")
+    if r.action is OptimizationAction.SET_HPA and (
+            r.target_kind != "HorizontalPodAutoscaler" or r.target_name not in _ALLOWED_DEPLOYS):
+        return GateDecision(allow_apply=False,
+                            reason="SET_HPA must target an HPA named after a lab Deployment")
+
+    if r.action is OptimizationAction.ADJUST_REPLICAS:
+        rep = r.params.get("replicas")
+        if not isinstance(rep, int) or not (1 <= rep <= _MAX_REPLICAS):
+            return GateDecision(allow_apply=False,
+                                reason=f"replicas must be int in 1..{_MAX_REPLICAS}")
+    if r.action is OptimizationAction.SET_HPA:
+        mn, mx, cpu = r.params.get("min"), r.params.get("max"), r.params.get("cpu_percent")
+        if not all(isinstance(x, int) for x in (mn, mx, cpu)):
+            return GateDecision(allow_apply=False, reason="HPA min/max/cpu_percent must be ints")
+        if not (1 <= mn <= mx <= _MAX_REPLICAS) or not (1 <= cpu <= 100):
+            return GateDecision(allow_apply=False, reason="HPA bounds invalid")
+    if r.action in _RIGHT_SIZE_ACTIONS:
+        patch = r.params.get("patch")
+        if not patch:
+            return GateDecision(allow_apply=False, reason="right-size needs a resources patch body")
+        try:
+            json.loads(patch)
+        except (json.JSONDecodeError, TypeError) as e:
+            return GateDecision(allow_apply=False, reason=f"resources patch not valid JSON: {e}")
+
+    return GateDecision(allow_apply=True, reason=f"recommendation {r.action} within sre-lab scope")

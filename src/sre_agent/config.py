@@ -46,6 +46,13 @@ class Settings(BaseSettings):
     max_tool_calls: int = Field(40, alias="SRE_MAX_TOOL_CALLS")
     max_elapsed_seconds: int = Field(600, alias="SRE_MAX_ELAPSED_SECONDS")
 
+    # Efficiency / capacity / cost
+    mem_cost_weight: float = Field(0.5, alias="SRE_MEM_COST_WEIGHT")
+    cpu_target_util: float = Field(0.7, alias="SRE_CPU_TARGET_UTIL")
+    peak_multiplier: float = Field(2.0, alias="SRE_PEAK_MULTIPLIER")
+    price_vcpu_hour: float = Field(0.0, alias="SRE_PRICE_VCPU_HOUR")  # 0 = dollarization off
+    price_gib_hour: float = Field(0.0, alias="SRE_PRICE_GIB_HOUR")
+
     # Observability / memory
     runs_dir: Path = Field(REPO_ROOT / "runs", alias="SRE_RUNS_DIR")
     memory_db: Path = Field(REPO_ROOT / "memory" / "sre_memory.sqlite", alias="SRE_MEMORY_DB")

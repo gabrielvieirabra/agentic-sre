@@ -44,6 +44,13 @@ returns: pydantic ToolResult {ok, data, error, duration_ms}
 | `scale` | MUTATE_LAB | kind/name, replicas (1..5) | scaled | 30 |
 | `rollout_restart` | MUTATE_LAB | kind/name | restarted | 30 |
 | `top_pods` | READ | — | cpu/mem per pod | 15 |
+| `get_hpa` | READ | name | HPA json (or absent) | 20 |
+| `set_hpa` | MUTATE_LAB | deploy, min, max, cpu% | HPA applied (autoscaling/v2) | 30 |
+| `delete_hpa` | MUTATE_LAB | name | deleted | 30 |
+| `run_load_test` | READ | app, duration, concurrency | rps/p95/error-rate (via hey+port-forward) | 60 |
+
+**Resilience:** every kubectl call retries up to 3× on transient apiserver errors (TLS handshake
+timeout / connection refused) — safe because all ops are idempotent/declarative.
 | `helm_template_or_apply` | MUTATE_LAB | chart, values, ns | rendered/applied | 60 |
 | `write_file` | WRITE_REPO | path (repo-relative), content | bytes | 5 |
 | `run_shell_command` | READ/MUTATE | argv (allowlist only) | stdout/exit | 30 |

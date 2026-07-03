@@ -58,6 +58,21 @@ class MitigationAction(StrEnum):
     DEPENDENCY_FALLBACK = "dependency-fallback"
 
 
+class EfficiencyIssue(StrEnum):
+    OVER_PROVISIONED = "over-provisioned"
+    UNDER_PROVISIONED = "under-provisioned"
+    NO_AUTOSCALING = "no-autoscaling"
+    CAPACITY_RISK = "capacity-risk"
+    EFFICIENT = "efficient"
+
+
+class OptimizationAction(StrEnum):
+    RIGHT_SIZE_DOWN = "right-size-down"
+    RIGHT_SIZE_UP = "right-size-up"
+    SET_HPA = "set-hpa"
+    ADJUST_REPLICAS = "adjust-replicas"
+
+
 class Symptom(BaseModel):
     kind: str  # e.g. "pod", "service"
     name: str
@@ -109,6 +124,44 @@ class Mitigation(BaseModel):
     rollback: str = ""
     validation: str = ""
     risk_level: RiskLevel = RiskLevel.MEDIUM
+
+
+class ResourceAnalysis(BaseModel):
+    """Deterministic efficiency scorecard for one app (from kubectl top + spec)."""
+
+    app: str
+    replicas: int = 0
+    cpu_usage_m: int = 0        # total observed millicores across pods
+    mem_usage_mi: int = 0       # total observed MiB across pods
+    cpu_request_m: int = 0      # per-pod request
+    mem_request_mi: int = 0
+    cpu_limit_m: int = 0        # per-pod limit (0 = unset)
+    cpu_util_pct: float = 0.0   # usage / (request * replicas)
+    mem_util_pct: float = 0.0
+    hpa_present: bool = False
+    cost_units: float = 0.0
+    smells: list[str] = Field(default_factory=list)
+
+
+class Recommendation(BaseModel):
+    """A bounded, structured efficiency change (right-size / HPA / replicas)."""
+
+    action: OptimizationAction
+    summary: str
+    target_kind: str  # Deployment | HorizontalPodAutoscaler
+    target_name: str
+    params: dict = Field(default_factory=dict)
+    rollback: str = ""
+    validation: str = ""
+    risk_level: RiskLevel = RiskLevel.LOW
+    est_savings: str = ""  # human-readable cost-units / $ delta
+
+
+class CapacityPlan(BaseModel):
+    peak_multiplier: float = 2.0
+    current_replicas: int = 0
+    required_replicas: int = 0
+    note: str = ""
 
 
 class ValidationResult(BaseModel):
@@ -163,6 +216,14 @@ class AgentState(BaseModel):
     mitigation: Mitigation | None = None
     incident_timeline: list[str] = Field(default_factory=list)
     followups: list[str] = Field(default_factory=list)
+
+    # efficiency / capacity / cost
+    efficiency_issue: EfficiencyIssue | None = None
+    analysis: ResourceAnalysis | None = None
+    recommendation: Recommendation | None = None
+    capacity_plan: CapacityPlan | None = None
+    load_result: dict | None = None
+    peak_multiplier: float = 2.0
 
     # action
     planned_action_block: str = ""

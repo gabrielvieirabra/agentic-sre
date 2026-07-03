@@ -4,14 +4,18 @@ from sre_agent.safety.gate import (
     GateDecision,
     check_gate,
     check_mitigation_gate,
+    check_recommendation_gate,
     mitigation_action_block,
     planned_action_block,
+    recommendation_action_block,
 )
 
 __all__ = [
     "GateDecision",
     "check_gate",
     "check_mitigation_gate",
+    "check_recommendation_gate",
     "mitigation_action_block",
     "planned_action_block",
+    "recommendation_action_block",
 ]

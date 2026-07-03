@@ -50,6 +50,9 @@ run-agent: ## Run the SRE repair loop. Usage: make run-agent SCENARIO=bad-probe 
 oncall: ## On-call incident response. Usage: make oncall SCENARIO=bad-deploy ALERT=lab/alerts/bad-deploy.json MODE=apply-local-lab
 	uv run sre-agent oncall --scenario $(SCENARIO) $(if $(ALERT),--alert $(ALERT),) --mode $(MODE)
 
+optimize: ## Efficiency/capacity/cost. Usage: make optimize SCENARIO=over-provisioned PEAK=3 MODE=apply-local-lab
+	uv run sre-agent optimize --scenario $(SCENARIO) $(if $(PEAK),--peak $(PEAK),) --mode $(MODE)
+
 eval: ## Run the eval suite and score results
 	uv run python -m evals.runner
 

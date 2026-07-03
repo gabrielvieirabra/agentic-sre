@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: sre-lab
+resources:
+  - ../../manifests/base
+# WASTE: requests/limits inflated far above real usage (idle nginx ~1m CPU / 6Mi).
+# The efficiency loop should detect low utilization and RIGHT_SIZE_DOWN to cut cost.
+patches:
+  - target:
+      kind: Deployment
+      name: web
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: "500m"
+            memory: "256Mi"
+          limits:
+            cpu: "1"
+            memory: "512Mi"

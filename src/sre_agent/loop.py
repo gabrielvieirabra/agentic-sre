@@ -16,6 +16,7 @@ from sre_agent.llm import LLM
 from sre_agent.memory import Memory
 from sre_agent.observability import RunLogger, new_trace_id
 from sre_agent.oncall import build_oncall_graph
+from sre_agent.optimize import build_optimize_graph
 from sre_agent.reports import build_report
 from sre_agent.state import AgentState, Alert
 from sre_agent.tools import Tools
@@ -24,6 +25,8 @@ _GOAL_REPAIR = ("Restore the sre-lab workload to a healthy, validated state with
                 "smallest safe change.")
 _GOAL_ONCALL = ("Triage the alert and mitigate the incident (stop the bleeding) within "
                 "sre-lab, then communicate and open follow-ups.")
+_GOAL_OPTIMIZE = ("Analyze utilization and cost, then improve efficiency/capacity of the "
+                  "sre-lab workload with the smallest safe change.")
 
 
 def _finalize(final: AgentState, settings: Settings, logger: RunLogger, tools: Tools,
@@ -81,6 +84,25 @@ def run_oncall(settings: Settings, scenario: str | None,
 
     init = AgentState(trace_id=trace_id, goal=_GOAL_ONCALL, mode=settings.mode.value,
                       scenario=scenario, alert=_load_alert(alert_path))
+    start = time.time()
+    final = AgentState.model_validate(graph.invoke(init, config={"recursion_limit": 50}))
+    final = _finalize(final, settings, logger, tools, time.time() - start)
+    memory.close()
+    return final
+
+
+def run_optimize(settings: Settings, scenario: str | None, app: str = "web",
+                 peak: float | None = None) -> AgentState:
+    """Run the efficiency/capacity/cost loop once and return the final AgentState."""
+    trace_id = new_trace_id(scenario or "optimize")
+    logger = RunLogger(settings.runs_dir, trace_id, settings.log_level)
+    tools = Tools(settings, logger)
+    memory = Memory(settings.memory_db)
+    graph = build_optimize_graph(settings, tools, LLM(settings), logger, memory)
+
+    init = AgentState(trace_id=trace_id, goal=_GOAL_OPTIMIZE, mode=settings.mode.value,
+                      scenario=scenario, target_app=app,
+                      peak_multiplier=peak if peak is not None else settings.peak_multiplier)
     start = time.time()
     final = AgentState.model_validate(graph.invoke(init, config={"recursion_limit": 50}))
     final = _finalize(final, settings, logger, tools, time.time() - start)

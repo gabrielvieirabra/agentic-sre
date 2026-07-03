@@ -63,9 +63,36 @@ def build_report(state: AgentState, settings: Settings) -> str:
             lines.append("```")
         lines.append("")
 
+    if state.analysis:
+        an = state.analysis
+        lines.append("## Efficiency scorecard")
+        lines.append(f"- **App:** {an.app}  ·  **Replicas:** {an.replicas}  ·  "
+                     f"**HPA:** {'yes' if an.hpa_present else 'no'}")
+        lines.append(f"- **CPU:** usage {an.cpu_usage_m}m vs request {an.cpu_request_m}m "
+                     f"(util {an.cpu_util_pct}%), limit {an.cpu_limit_m}m")
+        lines.append(f"- **Memory:** usage {an.mem_usage_mi}Mi vs request {an.mem_request_mi}Mi "
+                     f"(util {an.mem_util_pct}%)")
+        lines.append(f"- **Cost units:** {an.cost_units}")
+        if an.smells:
+            lines.append("- **Smells:**")
+            for sm in an.smells:
+                lines.append(f"  - {sm}")
+        if state.efficiency_issue:
+            lines.append(f"- **Issue:** `{state.efficiency_issue.value}`")
+        lines.append("")
+
+    if state.capacity_plan:
+        cp = state.capacity_plan
+        lines.append("## Capacity plan")
+        lines.append(f"- Peak {cp.peak_multiplier}x → required ~{cp.required_replicas} replicas "
+                     f"(current {cp.current_replicas}). {cp.note}")
+        lines.append("")
+
     mit = state.mitigation
-    lines.append("## Mitigation" if mit else "## Proposed fix")
-    if patch or mit:
+    rec = state.recommendation
+    title = "## Recommendation" if rec else ("## Mitigation" if mit else "## Proposed fix")
+    lines.append(title)
+    if patch or mit or rec:
         lines.append("```")
         lines.append(state.planned_action_block)
         lines.append("```")
@@ -74,6 +101,9 @@ def build_report(state: AgentState, settings: Settings) -> str:
         elif mit:
             lines.append(f"- **Action:** `{mit.action.value}` on "
                          f"{mit.target_kind}/{mit.target_name}")
+        elif rec:
+            lines.append(f"- **Action:** `{rec.action.value}` on "
+                         f"{rec.target_kind}/{rec.target_name}  ·  savings: {rec.est_savings}")
     else:
         lines.append("- (none)")
     lines.append("")
