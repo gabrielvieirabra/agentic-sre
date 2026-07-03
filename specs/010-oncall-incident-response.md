@@ -76,4 +76,7 @@ A `notify()` seam logs locally; Slack/webhook and GitHub issues are off-by-defau
 
 ## Test strategy
 - Unit (no cluster/LLM): gate allow/deny, catalog signal→action, severity map, report rendering.
-- Live: the four scenarios above in apply mode; dry-run no-mutation; forced non-recovery → ROLLED_BACK/NEEDS_HUMAN.
+- Live: the four scenarios above in apply mode; dry-run no-mutation.
+- Escalation demo (`bad-deploy-unrecoverable`): two consecutive bad deploys → ROLLBACK reverts to a
+  still-broken revision → `NEEDS_HUMAN` (the loop never auto-undoes a rollback; it escalates and
+  leaves the service no worse). Non-rollback mitigations that fail instead auto-revert → `ROLLED_BACK`.

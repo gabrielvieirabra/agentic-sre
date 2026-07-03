@@ -106,6 +106,41 @@ def test_followups_per_incident():
     assert any("HPA" in i for i in _followup_items(IncidentCategory.OVERLOAD))
 
 
+def _oncall_nodes(tmp_path):
+    from sre_agent.llm import LLM
+    from sre_agent.memory import Memory
+    from sre_agent.observability import RunLogger
+    from sre_agent.oncall import OnCallNodes
+    from sre_agent.tools import Tools
+    s = _settings(Mode.APPLY_LOCAL_LAB)
+    logger = RunLogger(tmp_path, "t", "INFO")
+    return OnCallNodes(s, Tools(s, logger), LLM(s), logger, Memory(tmp_path / "m.sqlite"))
+
+
+def _applied(action: MitigationAction):
+    from sre_agent.state import AppliedAction
+    return AppliedAction(description="m", command="c", applied=True,
+                         target_kind="Deployment", target_name="web",
+                         mitigation_action=action.value)
+
+
+def test_rollback_that_does_not_recover_escalates(tmp_path):
+    """A rollback that leaves the service unhealthy must escalate, not auto-undo."""
+    from sre_agent.state import ValidationResult
+    n = _oncall_nodes(tmp_path)
+    state = AgentState(
+        trace_id="t", goal="g", mode="apply-local-lab", scenario="bad-deploy-unrecoverable",
+        incident=IncidentCategory.BAD_DEPLOY, severity=Severity.SEV2,
+        mitigation=_scale_mit(action=MitigationAction.ROLLBACK, params={}),
+        applied_actions=[_applied(MitigationAction.ROLLBACK)],
+        validation=ValidationResult(healthy=False, ready_replicas=0, desired_replicas=2,
+                                    endpoints=0),
+    )
+    out = n.incident_evaluator(state)
+    assert out["terminal_state"] is TerminalState.NEEDS_HUMAN
+    assert "escalat" in out["escalation_reason"].lower()
+
+
 def test_report_renders_oncall_sections():
     state = AgentState(
         trace_id="t", goal="g", mode="apply-local-lab", scenario="overloaded",

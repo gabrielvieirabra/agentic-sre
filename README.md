@@ -66,6 +66,10 @@ make oncall SCENARIO=overloaded ALERT=lab/alerts/high-latency.json MODE=apply-lo
 make inject SCENARIO=dependency-down            # depsvc upstream failing (503)
 make oncall SCENARIO=dependency-down ALERT=lab/alerts/dependency-down.json MODE=apply-local-lab
 #   -> DEPENDENCY_FALLBACK (flip ConfigMap + restart) -> MITIGATED
+
+make inject SCENARIO=bad-deploy-unrecoverable   # two bad revisions in a row
+make oncall SCENARIO=bad-deploy-unrecoverable ALERT=lab/alerts/bad-deploy.json MODE=apply-local-lab
+#   -> ROLLBACK lands on a still-bad revision -> NEEDS_HUMAN (safe escalation, never left worse)
 ```
 
 Mitigation catalog: `DeployFailed → rollback` · `HighLatency → scale-out` ·
